@@ -1,0 +1,448 @@
+import { Button, ComboBox, LineEdit, ListView, Palette, Switch } from "std-widgets.slint";
+
+// `thumb` is only meaningful when `has-thumb` is set (an image entry whose thumbnail could be made). Image rows are
+// taller than text rows, so Rust gives each row its `height` and the `top` offset in the list (for scrolling to it).
+export struct Row { text: string, thumb: image, has-thumb: bool, is-image: bool, top: length, height: length }
+
+// Strings built in Rust (the tray menu, the label of an image entry) go through this global so they are translated
+// like the ones in the UI.
+export global Tr {
+    public pure function image(width: int, height: int, kb: int) -> string { return @tr("Image {}×{} · {} KB", width, height, kb); }
+    public pure function open() -> string { return @tr("Open"); }
+    public pure function preferences() -> string { return @tr("Preferences…"); }
+    public pure function quit() -> string { return @tr("Quit"); }
+}
+
+export component Main inherits Window {
+    // One line per entry (newlines already flattened by Rust).
+    in property <[Row]> rows;
+    // Entries not listed yet (only the first page is, until "Show all" or the arrows go past its end).
+    in property <int> hidden;
+    in-out property <int> current;
+    in-out property <string> query;
+    callback query-changed(string);
+    callback activate(int, bool);
+    callback remove(int);
+    // Shift+Enter menu: paste the row with option 0..5 (original, plain, trim, upper, lower, one line). On an image row
+    // everything after "Original" is applied to the text OCR finds in it; both lists have the same positions.
+    callback choose(int, int);
+    in-out property <bool> menu-open;
+    property <int> menu-index;
+    property <[string]> text-options: [
+        @tr("Original"), @tr("Plain text"), @tr("Trim"), @tr("UPPER CASE"), @tr("lower case"), @tr("One line"),
+    ];
+    property <[string]> image-options: [
+        @tr("Original"), @tr("OCR · Plain text"), @tr("OCR · Trim"), @tr("OCR · UPPER CASE"), @tr("OCR · lower case"),
+        @tr("OCR · One line"),
+    ];
+    property <[string]> options: root.rows[root.current].is-image ? root.image-options : root.text-options;
+    // Lists the next page of entries.
+    callback show-more();
+    callback dismiss();
+    callback open-prefs();
+    public function focus-search() { search.focus(); }
+
+    // Height of a text row; only an estimate for the page size and the "near the end" test (see `Row.height`).
+    pure function row-height() -> length { return 38px; }
+
+    // Rows that fit in the list: the step of Page Up / Page Down.
+    pure function page-size() -> int { return Math.max(1, Math.floor(list.visible-height / row-height())); }
+
+    function maybe-more() {
+        if (root.hidden > 0 && list.content-height + list.content-y - list.visible-height < 2 * row-height()) {
+            root.show-more();
+        }
+    }
+
+    function select(i: int) {
+        // Going past the last loaded row loads the next page, so the arrows never stop at it.
+        if (i >= root.rows.length && root.hidden > 0) {
+            root.show-more();
+        }
+        root.current = Math.max(0, Math.min(root.rows.length - 1, i));
+        // Keep the selected row inside the viewport when moving with the arrow keys.
+        if (root.rows[root.current].top + list.content-y < 0) {
+            list.content-y = -root.rows[root.current].top;
+        } else if (root.rows[root.current].top + root.rows[root.current].height + list.content-y > list.visible-height) {
+            list.content-y = list.visible-height - root.rows[root.current].top - root.rows[root.current].height;
+        }
+    }
+
+    // A normal managed window: frameless or always-on-top ones did not get keyboard focus from the WM.
+    title: "FastPaste";
+    min-width: 356px;
+    min-height: 300px;
+    preferred-width: 600px;
+    preferred-height: 450px;
+
+    FocusScope {
+        capture-key-pressed(e) => {
+            if (root.menu-open) {
+                if (e.text == Key.UpArrow) {
+                    root.menu-index = Math.max(0, root.menu-index - 1);
+                } else if (e.text == Key.DownArrow) {
+                    root.menu-index = Math.min(root.options.length - 1, root.menu-index + 1);
+                } else if (e.text == Key.Return) {
+                    root.menu-open = false;
+                    root.choose(root.current, root.menu-index);
+                } else if (e.text == Key.Escape) {
+                    root.menu-open = false;
+                }
+                return accept;
+            }
+            if (e.text == Key.UpArrow) {
+                root.select(root.current - 1);
+                return accept;
+            } else if (e.text == Key.DownArrow) {
+                root.select(root.current + 1);
+                return accept;
+            } else if (e.text == Key.PageUp) {
+                root.select(root.current - root.page-size());
+                return accept;
+            } else if (e.text == Key.PageDown) {
+                root.select(root.current + root.page-size());
+                return accept;
+            } else if (e.text == Key.Return) {
+                if (root.rows.length > 0) {
+                    if (e.modifiers.shift) {
+                        root.menu-index = 0;
+                        root.menu-open = true;
+                    } else {
+                        root.activate(root.current, false);
+                    }
+                }
+                return accept;
+            } else if (e.text == Key.Escape) {
+                root.dismiss();
+                return accept;
+            } else if (e.text == Key.Tab) {
+                // Nothing to do, but it must not move the focus away from the search box.
+                return accept;
+            } else if (e.modifiers.alt && e.text == "d") {
+                root.remove(root.current);
+                return accept;
+            }
+            return reject;
+        }
+
+        VerticalLayout {
+            padding: 8px;
+            spacing: 6px;
+
+            HorizontalLayout {
+                spacing: 6px;
+                search := LineEdit {
+                    placeholder-text: @tr("Search…");
+                    text <=> root.query;
+                    edited(t) => {
+                        root.current = 0;
+                        list.content-y = 0;
+                        root.query-changed(t);
+                    }
+                }
+                // A plain Button keeps the native hover/pressed look; the icon is drawn on top (a Path takes no
+                // input, so clicks reach the button) and follows the theme.
+                Rectangle {
+                    width: self.height;
+                    Button {
+                        width: 100%;
+                        height: 100%;
+                        accessible-label: @tr("Preferences");
+                        clicked => { root.open-prefs(); }
+                    }
+                    Path {
+                        width: 16px;
+                        height: 14px;
+                        viewbox-width: 16;
+                        viewbox-height: 14;
+                        commands: "M 1 1 L 15 1 M 1 7 L 15 7 M 1 13 L 15 13";
+                        stroke: Palette.foreground;
+                        stroke-width: 2px;
+                        stroke-line-cap: round;
+                    }
+                }
+            }
+
+            if root.rows.length == 0: Text {
+                text: root.query == "" ? @tr("Nothing copied yet") : @tr("No matches");
+                color: Palette.foreground.with-alpha(0.6);
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                vertical-stretch: 1;
+            }
+
+            list := ListView {
+                visible: root.rows.length > 0;
+                vertical-stretch: 1;
+                // Like an endless web page: the next page loads when the scroll gets near the end (it also fills a
+                // window taller than the rows loaded so far).
+                changed content-y => { root.maybe-more(); }
+                changed content-height =>{ root.maybe-more(); }
+                changed visible-height => { root.maybe-more(); }
+                for row[i] in root.rows: Rectangle {
+                    height: row.height;
+                    background: i == root.current ? Palette.selection-background
+                        : row-touch.has-hover ? Palette.foreground.with-alpha(0.12) : transparent;
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        spacing: 8px;
+                        if row.has-thumb: Rectangle {
+                            width: 129px;
+                            // Stored at 192x96, so it stays sharp on HiDPI screens; `contain` keeps the proportion.
+                            Image {
+                                source: row.thumb;
+                                width: 100%;
+                                height: 64px;
+                                y: (parent.height - self.height) / 2;
+                                image-fit: contain;
+                            }
+                        }
+                        Text {
+                            text: row.text;
+                            color: i == root.current ? Palette.selection-foreground : Palette.foreground;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
+                    }
+                    row-touch := TouchArea {
+                        clicked => { root.activate(i, false); }
+                        // Right click: the same options menu as Shift+Enter, for this row.
+                        pointer-event(e) => {
+                            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
+                                root.current = i;
+                                root.menu-index = 0;
+                                root.menu-open = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: @tr("Enter paste · Shift+Enter options · PgUp/PgDn page · Alt+D delete");
+                color: Palette.foreground.with-alpha(0.5);
+                font-size: 11px;
+                overflow: elide;
+            }
+        }
+
+        if root.menu-open: Rectangle {
+            width: 240px;
+            x: (parent.width - self.width) / 2;
+            y: 50px;
+            height: root.options.length * 30px + 2px;
+            background: Palette.background;
+            border-width: 1px;
+            border-color: Palette.foreground.with-alpha(0.4);
+            VerticalLayout {
+                padding: 1px;
+                for option[i] in root.options: Rectangle {
+                    height: 30px;
+                    background: i == root.menu-index ? Palette.selection-background
+                        : option-touch.has-hover ? Palette.foreground.with-alpha(0.12) : transparent;
+                    Text {
+                        x: 10px;
+                        text: option;
+                        color: i == root.menu-index ? Palette.selection-foreground : Palette.foreground;
+                        vertical-alignment: center;
+                    }
+                    option-touch := TouchArea {
+                        clicked => {
+                            root.menu-open = false;
+                            root.choose(root.current, i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Opened from the burger button, the tray ("Preferences…") or `fastpaste --prefs`. Save applies the shortcut, the entry
+// cap and the language at once; the switch and "Clear history" act immediately.
+export component Preferences inherits Window {
+    title: @tr("FastPaste preferences");
+    preferred-width: 440px;
+    preferred-height: 470px;
+    // Canonical form ("ctrl+alt+v"), as stored in settings.toml.
+    in-out property <string> hotkey;
+    in-out property <string> max-items;
+    // Index into `languages`; Rust maps it to the language code (LANGUAGES in app.rs, same order).
+    in-out property <int> language;
+    in-out property <bool> autostart;
+    in property <string> version;
+    // 0 none, 1 shortcut not valid, 2 shortcut taken, 3 entry cap out of range.
+    in-out property <int> error;
+    in-out property <bool> recording-shortcut;
+    // ctrl, alt, shift, super currently held while recording.
+    in-out property <[bool]> held: [false, false, false, false];
+    in-out property <bool> about-open;
+    in-out property <bool> confirm-clear;
+    // Returns the error code, 0 when saved.
+    callback save(string, string, int) -> int;
+    callback cancel();
+    callback set-autostart(bool);
+    callback clear-history();
+    callback quit();
+    callback open-url(string);
+    // True (and `hotkey` set by Rust) when the key press completes a valid shortcut.
+    callback record-key(string, bool, bool, bool, bool) -> bool;
+    pure callback held-text(bool, bool, bool, bool) -> string;
+    property <[string]> languages: [@tr("System"), "English", "Português (Brasil)"];
+
+    FocusScope {
+        capture-key-pressed(e) => {
+            if (!root.recording-shortcut) {
+                return reject;
+            }
+            root.held = [e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta];
+            if (e.text == Key.Escape || root.record-key(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta)) {
+                root.recording-shortcut = false;
+            }
+            return accept;
+        }
+        capture-key-released(e) => {
+            if (!root.recording-shortcut) {
+                return reject;
+            }
+            // The released modifier may still be set in the event, so clear it by key.
+            root.held = [
+                e.modifiers.control && e.text != Key.Control && e.text != Key.ControlR,
+                e.modifiers.alt && e.text != Key.Alt && e.text != Key.AltGr,
+                e.modifiers.shift && e.text != Key.Shift && e.text != Key.ShiftR,
+                e.modifiers.meta && e.text != Key.Meta && e.text != Key.MetaR,
+            ];
+            return accept;
+        }
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            alignment: start;
+            Text { text: @tr("Shortcut"); }
+            Button {
+                text: root.recording-shortcut ? root.held-text(root.held[0], root.held[1], root.held[2], root.held[3]) : root.hotkey;
+                clicked => { root.held = [false, false, false, false]; root.recording-shortcut = true; }
+            }
+            Text { text: @tr("Entries kept"); }
+            LineEdit { text <=> root.max-items; placeholder-text: "500"; }
+            Text { text: @tr("Language"); }
+            ComboBox { model: root.languages; current-index <=> root.language; }
+            Text {
+                text: @tr("Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed.");
+                wrap: word-wrap;
+                color: Palette.foreground.with-alpha(0.6);
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: @tr("Start at login"); vertical-alignment: center; horizontal-stretch: 1; }
+                Switch {
+                    checked: root.autostart;
+                    toggled => { root.set-autostart(self.checked); }
+                }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: @tr("Clipboard history"); vertical-alignment: center; horizontal-stretch: 1; }
+                Button { text: @tr("Clear history…"); clicked => { root.confirm-clear = true; } }
+            }
+            if root.error != 0: Text {
+                wrap: word-wrap;
+                color: #e5484d;
+                text: root.error == 1 ? @tr("Use modifiers and one letter or digit, like ctrl+alt+v.")
+                    : root.error == 2 ? @tr("That shortcut is already in use by another program.")
+                    : @tr("Entries kept must be a number from 10 to 5000.");
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Button { text: @tr("Quit FastPaste"); clicked => { root.quit(); } }
+                Button { text: @tr("About"); clicked => { root.about-open = true; } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: @tr("Cancel"); clicked => { root.recording-shortcut = false; root.cancel(); } }
+                Button {
+                    text: @tr("Save");
+                    primary: true;
+                    clicked => { root.error = root.save(root.hotkey, root.max-items, root.language); }
+                }
+            }
+        }
+    }
+
+    if root.confirm-clear: Rectangle {
+        background: #0008;
+        TouchArea { clicked => { root.confirm-clear = false; } }
+        Rectangle {
+            width: min(root.width - 40px, 340px);
+            height: min(root.height - 20px, 190px);
+            background: Palette.background;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Palette.border;
+            TouchArea { }
+            VerticalLayout {
+                padding: 18px;
+                spacing: 10px;
+                alignment: center;
+                Text { text: @tr("Clear history?"); font-size: 16px; font-weight: 700; horizontal-alignment: center; }
+                Text {
+                    text: @tr("Every copied text and image will be deleted. This cannot be undone.");
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: center;
+                    Button { text: @tr("Cancel"); clicked => { root.confirm-clear = false; } }
+                    Button {
+                        text: @tr("Clear history");
+                        primary: true;
+                        clicked => { root.confirm-clear = false; root.clear-history(); }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.about-open: Rectangle {
+        background: #0008;
+        TouchArea { clicked => { root.about-open = false; } }
+        Rectangle {
+            width: min(root.width - 40px, 320px);
+            height: min(root.height - 20px, 290px);
+            background: Palette.background;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Palette.border;
+            TouchArea { }
+            VerticalLayout {
+                padding: 18px;
+                spacing: 8px;
+                alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    Image {
+                        source: @image-url("../../../packaging/io.github.evandro777.FastPaste.png");
+                        width: 48px;
+                        height: 48px;
+                    }
+                }
+                Text { text: "FastPaste"; font-size: 20px; font-weight: 700; horizontal-alignment: center; }
+                Text { text: @tr("Version {}", root.version); horizontal-alignment: center; }
+                Text { text: @tr("Light and fast clipboard history for Linux."); horizontal-alignment: center; wrap: word-wrap; }
+                Text { text: @tr("Author: {}", "evandro777"); horizontal-alignment: center; }
+                Text { text: @tr("License: {}", "GPL-3.0-or-later"); horizontal-alignment: center; }
+                Text {
+                    text: "github.com/evandro777/FastPaste";
+                    horizontal-alignment: center;
+                    color: #3584e4;
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.open-url("https://github.com/evandro777/FastPaste"); }
+                    }
+                }
+                Button { text: @tr("Close"); primary: true; clicked => { root.about-open = false; } }
+            }
+        }
+    }
+}
