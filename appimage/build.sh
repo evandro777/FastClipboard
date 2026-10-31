@@ -16,8 +16,9 @@ install -Dm755 target/release/fastpaste "$d/usr/bin/fastpaste"
 install -Dm644 packaging/$id.desktop "$d/usr/share/applications/$id.desktop"
 install -Dm644 packaging/$id.svg "$d/usr/share/icons/hicolor/scalable/apps/$id.svg"
 install -Dm644 packaging/$id.metainfo.xml "$d/usr/share/metainfo/$id.metainfo.xml"
-# appimagetool wants the desktop file and icon at the root too.
+# appimagetool wants the desktop file and a PNG icon at the root too (it builds .DirIcon from the PNG, not the SVG).
 cp "$d/usr/share/applications/$id.desktop" "$d/usr/share/icons/hicolor/scalable/apps/$id.svg" "$d/"
+install -m644 packaging/$id.png "$d/$id.png"
 ln -s usr/bin/fastpaste "$d/AppRun"
 
 # Update info: AppImageUpdate-style tools read it from the file and fetch the .zsync from the latest release.
