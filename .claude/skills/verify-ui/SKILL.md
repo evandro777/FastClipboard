@@ -1,0 +1,14 @@
+---
+name: verify-ui
+description: Render the changed MyApp Slint pages with canned data on a private Xvfb and read the screenshots before calling a UI change done. Use after any change to crates/app/ui or the Rust that feeds it.
+---
+
+# Verify a MyApp UI change
+
+Do not commit, push or create branches. Never claim a UI change works from a passing build alone.
+
+1. **Checks:** `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`. Fix any failure first.
+2. **Snapshots:** `scripts/ui-snapshot.sh <page> [page ...]` (names are the keys of `PAGES` in the script; none = all; `MODES="many"` narrows). It builds, starts a private Xvfb, opens each page with `MYAPP_FIXTURES=empty|single|many` and writes `target/ui-snapshots/<page>-<mode>.png`. The real system is never scanned or changed.
+3. **Read every PNG** of the pages you touched, in all three modes, and look for: stretched rows (rows spread over the window with one item; a `VerticalLayout` inside a `ScrollView` needs `alignment: start`), misaligned badges, truncated or overflowing text at the window edge, wrong units or float noise (`3.600000`), blank lists with no "Nothing found." state, text that should be selectable as one block (read-only `TextInput`, one per block).
+4. **Fix and re-run** until every image is right. A new page or list needs a `PAGES` entry and fixture data in `crates/app/src/fixtures.rs`; a new `@tr` string needs `dev/gen_po.py`.
+5. **Report:** what was verified in the images, what only by tests, and what the user must test by hand. Anything behind `pkexec` always goes in the manual list.

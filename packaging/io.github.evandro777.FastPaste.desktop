@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=FastPaste
+Type=Application
+GenericName=Clipboard Manager
+Comment=Clipboard history with a global shortcut
+Exec=fastpaste
+Categories=Utility;
+Icon=io.github.evandro777.FastPaste
+Terminal=false

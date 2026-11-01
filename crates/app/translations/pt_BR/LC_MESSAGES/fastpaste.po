@@ -1,0 +1,180 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+
+msgctxt "Main"
+msgid "Search…"
+msgstr "Pesquisar…"
+
+msgctxt "Main"
+msgid "Nothing copied yet"
+msgstr "Nada copiado ainda"
+
+msgctxt "Main"
+msgid "No matches"
+msgstr "Nenhum resultado"
+
+msgctxt "Main"
+msgid "Enter paste · Shift+Enter options · PgUp/PgDn page · Alt+D delete"
+msgstr "Enter colar · Shift+Enter opções · PgUp/PgDn página · Alt+D excluir"
+
+msgctxt "Main"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "Main"
+msgid "Plain text"
+msgstr "Texto simples"
+
+msgctxt "Main"
+msgid "Trim"
+msgstr "Aparar"
+
+msgctxt "Main"
+msgid "UPPER CASE"
+msgstr "MAIÚSCULAS"
+
+msgctxt "Main"
+msgid "lower case"
+msgstr "minúsculas"
+
+msgctxt "Main"
+msgid "One line"
+msgstr "Uma linha"
+
+msgctxt "Main"
+msgid "OCR · Plain text"
+msgstr "OCR · Texto simples"
+
+msgctxt "Main"
+msgid "OCR · Trim"
+msgstr "OCR · Aparar"
+
+msgctxt "Main"
+msgid "OCR · UPPER CASE"
+msgstr "OCR · MAIÚSCULAS"
+
+msgctxt "Main"
+msgid "OCR · lower case"
+msgstr "OCR · minúsculas"
+
+msgctxt "Main"
+msgid "OCR · One line"
+msgstr "OCR · Uma linha"
+
+msgctxt "Preferences"
+msgid "FastPaste preferences"
+msgstr "Preferências do FastPaste"
+
+msgctxt "Preferences"
+msgid "System"
+msgstr "Sistema"
+
+msgctxt "Preferences"
+msgid "Shortcut"
+msgstr "Atalho"
+
+msgctxt "Preferences"
+msgid "Entries kept"
+msgstr "Entradas guardadas"
+
+msgctxt "Preferences"
+msgid "Language"
+msgstr "Idioma"
+
+msgctxt "Preferences"
+msgid "Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed."
+msgstr "Também usado para ler texto de imagens (OCR): este idioma primeiro, depois inglês, se os pacotes do tesseract estiverem instalados."
+
+msgctxt "Preferences"
+msgid "Use modifiers and one letter or digit, like ctrl+alt+v."
+msgstr "Use modificadores e uma letra ou dígito, como ctrl+alt+v."
+
+msgctxt "Preferences"
+msgid "That shortcut is already in use by another program."
+msgstr "Esse atalho já está em uso por outro programa."
+
+msgctxt "Preferences"
+msgid "Entries kept must be a number from 10 to 5000."
+msgstr "Entradas guardadas deve ser um número de 10 a 5000."
+
+msgctxt "Preferences"
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgctxt "Preferences"
+msgid "Save"
+msgstr "Salvar"
+
+msgctxt "Preferences"
+msgid "Start at login"
+msgstr "Iniciar com o sistema"
+
+msgctxt "Preferences"
+msgid "Clipboard history"
+msgstr "Histórico da área de transferência"
+
+msgctxt "Preferences"
+msgid "Clear history…"
+msgstr "Limpar histórico…"
+
+msgctxt "Preferences"
+msgid "Clear history?"
+msgstr "Limpar o histórico?"
+
+msgctxt "Preferences"
+msgid "Every copied text and image will be deleted. This cannot be undone."
+msgstr "Todos os textos e imagens copiados serão apagados. Isso não pode ser desfeito."
+
+msgctxt "Preferences"
+msgid "Clear history"
+msgstr "Limpar histórico"
+
+msgctxt "Preferences"
+msgid "Quit FastPaste"
+msgstr "Sair do FastPaste"
+
+msgctxt "Preferences"
+msgid "About"
+msgstr "Sobre"
+
+msgctxt "Preferences"
+msgid "Close"
+msgstr "Fechar"
+
+msgctxt "Preferences"
+msgid "Version {}"
+msgstr "Versão {}"
+
+msgctxt "Preferences"
+msgid "Light and fast clipboard history for Linux."
+msgstr "Histórico da área de transferência leve e rápido para Linux."
+
+msgctxt "Preferences"
+msgid "Author: {}"
+msgstr "Autor: {}"
+
+msgctxt "Preferences"
+msgid "License: {}"
+msgstr "Licença: {}"
+
+msgctxt "Main"
+msgid "Preferences"
+msgstr "Preferências"
+
+msgctxt "Tr"
+msgid "Preferences…"
+msgstr "Preferências…"
+
+msgctxt "Tr"
+msgid "Image {}×{} · {} KB"
+msgstr "Imagem {}×{} · {} KB"
+
+msgctxt "Tr"
+msgid "Open"
+msgstr "Abrir"
+
+msgctxt "Tr"
+msgid "Quit"
+msgstr "Sair"
