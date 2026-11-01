@@ -285,6 +285,30 @@ impl Incr {
     }
 }
 
+/// What to do with a new copy, from the targets its owner offers.
+#[derive(Debug, PartialEq)]
+enum Plan {
+    /// Never recorded (a password manager).
+    Skip,
+    Image(Atom),
+    Text,
+}
+
+/// A copy from a password manager is never recorded. An owner that does not answer TARGETS (empty list) is treated as
+/// ordinary text. Text wins when both are offered (a spreadsheet cell comes with a picture of itself); a PNG without
+/// text is an image copy (a screenshot, "Copy image" in a browser). PNG is preferred; a JPEG is converted to PNG by
+/// `images::to_png`.
+fn plan(targets: &[Atom], a: &Atoms) -> Plan {
+    if targets.contains(&a.secret_hint) {
+        return Plan::Skip;
+    }
+    let image = [a.png, a.jpeg].into_iter().find(|t| targets.contains(t));
+    match image.filter(|_| !targets.contains(&a.utf8)) {
+        Some(image) => Plan::Image(image),
+        None => Plan::Text,
+    }
+}
+
 struct Daemon {
     h: Handle,
     last_press: Option<u32>,
@@ -433,21 +457,17 @@ impl Daemon {
                 // A copy from a password manager is never recorded. An owner that does not answer TARGETS is
                 // treated as ordinary text.
                 let targets = self.read_targets(prop).unwrap_or_default();
-                let a = &self.h.a;
-                if targets.contains(&a.secret_hint) {
-                    return;
-                }
-                // Text wins when both are offered (a spreadsheet cell comes with a picture of itself); a PNG without
-                // text is an image copy (a screenshot, "Copy image" in a browser). PNG is preferred; a JPEG is
-                // converted to PNG by `images::to_png`.
-                let image = [a.png, a.jpeg].into_iter().find(|t| targets.contains(t));
-                if let Some(image) = image.filter(|_| !targets.contains(&a.utf8)) {
-                    self.stage = Stage::Image;
-                    self.image_target = image;
-                    self.request(image);
-                } else {
-                    self.stage = Stage::Text;
-                    self.request(a.utf8);
+                match plan(&targets, &self.h.a) {
+                    Plan::Skip => {}
+                    Plan::Image(image) => {
+                        self.stage = Stage::Image;
+                        self.image_target = image;
+                        self.request(image);
+                    }
+                    Plan::Text => {
+                        self.stage = Stage::Text;
+                        self.request(self.h.a.utf8);
+                    }
                 }
             }
             Stage::Text if target == self.h.a.utf8 => {
@@ -475,6 +495,11 @@ impl Daemon {
                     self.stage = Stage::Incr(Incr::new(Flavor::Image));
                 } else if reply.bytes_after == 0 {
                     (self.on_image)(reply.value);
+                } else {
+                    eprintln!(
+                        "image skipped: bigger than the {} byte limit",
+                        fastpaste_core::history::MAX_IMAGE_BYTES
+                    );
                 }
             }
             other => self.stage = other, // a late reply to a request that was already replaced
@@ -506,7 +531,7 @@ impl Daemon {
             }
             Done::Copy(text, html) => (self.on_copy)(text, html),
             Done::Image(png) => (self.on_image)(png),
-            Done::Nothing => {}
+            Done::Nothing => eprintln!("copy skipped: bigger than the size limit"),
         }
     }
 
@@ -731,6 +756,32 @@ mod tests {
         assert_eq!(parse_hotkey("v"), None); // a bare letter would steal typing everywhere
         assert_eq!(parse_hotkey("ctrl+alt"), None);
         assert_eq!(parse_hotkey("ctrl+f13"), None);
+    }
+
+    #[test]
+    fn what_to_do_with_a_copy() {
+        let atoms = Atoms {
+            clipboard: 1,
+            utf8: 2,
+            html: 3,
+            png: 4,
+            jpeg: 5,
+            targets: 6,
+            incr: 7,
+            secret_hint: 8,
+            prop: 9,
+            active: 10,
+            user_time: 11,
+        };
+        let a = &atoms;
+        assert_eq!(plan(&[a.utf8, a.secret_hint], a), Plan::Skip, "password manager");
+        assert_eq!(plan(&[a.png, a.secret_hint], a), Plan::Skip, "also for an image");
+        assert_eq!(plan(&[a.png], a), Plan::Image(a.png));
+        assert_eq!(plan(&[a.png, a.utf8], a), Plan::Text, "text wins over its picture");
+        assert_eq!(plan(&[a.jpeg], a), Plan::Image(a.jpeg));
+        assert_eq!(plan(&[a.jpeg, a.png], a), Plan::Image(a.png), "PNG preferred");
+        assert_eq!(plan(&[a.utf8, a.html], a), Plan::Text);
+        assert_eq!(plan(&[], a), Plan::Text, "owner that does not answer TARGETS");
     }
 
     #[test]

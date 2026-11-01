@@ -1,12 +1,7 @@
 //! Clipboard history: newest first, deduplicated, capped, saved as one TOML file next to the settings.
 //! Images are not in that file: each PNG (and its small thumbnail) is a file in `images/`, and the entry only points
 //! at it, so the TOML stays small and the list never has to hold pixels.
-use std::{
-    collections::hash_map::DefaultHasher,
-    fs,
-    hash::{Hash, Hasher},
-    path::PathBuf,
-};
+use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +9,11 @@ use crate::settings::{create_private_dir, write_private};
 
 /// A single huge copy (a log, a base64 blob) would make every save slow and the list useless.
 pub const MAX_ITEM_BYTES: usize = 1 << 20;
+/// All text and HTML together. The whole list is in RAM and rewritten to disk on every copy, so 500 big entries would
+/// make each copy slow; the oldest entries go first.
+const MAX_TOTAL_BYTES: usize = 32 << 20;
+/// All stored PNGs together (disk only: the list loads thumbnails). 500 screenshots of 8 MB would be 4 GB.
+const MAX_IMAGE_TOTAL_BYTES: usize = 1 << 30;
 /// Largest PNG kept. Bigger ones are skipped: 500 of them would fill the disk and a screenshot is rarely above this.
 pub const MAX_IMAGE_BYTES: usize = 8 << 20;
 
@@ -38,9 +38,6 @@ pub struct Item {
     pub html: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<Image>,
-    /// `text` lowercased once, so a search does not allocate a copy of every entry per keystroke.
-    #[serde(skip)]
-    lower: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -68,10 +65,41 @@ pub fn thumb_path(id: &str) -> PathBuf {
     images_dir().join(format!("{id}.thumb.png"))
 }
 
+/// FNV-1a (64 bit) plus the length. Written out because `DefaultHasher` may change between Rust releases, which would
+/// give the same image a new id after an upgrade and defeat the dedupe; this one is fixed forever.
 fn id_of(png: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
-    png.hash(&mut hasher);
-    format!("{:016x}{:x}", hasher.finish(), png.len())
+    let hash = png.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    });
+    format!("{hash:016x}{:x}", png.len())
+}
+
+/// Does `hay` contain `needle` (already lowercased, never empty), ignoring case? Lowercases on the fly instead of
+/// keeping a lowercase copy of every entry in RAM; stops at the first mismatch, so a miss costs little per position.
+fn contains_ci(hay: &str, needle: &str) -> bool {
+    if needle.is_ascii() {
+        // Fast path (most searches): bytes only. A multi-byte character never contains an ASCII byte, so no boundary
+        // can be split. About 10x faster than the char loop below on a full history.
+        let n = needle.as_bytes();
+        return hay
+            .as_bytes()
+            .windows(n.len())
+            .any(|w| w[0].to_ascii_lowercase() == n[0] && w.eq_ignore_ascii_case(n));
+    }
+    let needle: Vec<char> = needle.chars().collect();
+    hay.char_indices().any(|(i, c)| {
+        // The first character decides almost every position, so the full comparison is built only for the few hits.
+        // ASCII text (most of it) skips the Unicode table lookup of `char::to_lowercase`.
+        (if c.is_ascii() {
+            Some(c.to_ascii_lowercase())
+        } else {
+            c.to_lowercase().next()
+        }) == Some(needle[0])
+            && {
+                let mut chars = hay[i..].chars().flat_map(char::to_lowercase);
+                needle.iter().all(|n| chars.next() == Some(*n))
+            }
+    })
 }
 
 impl History {
@@ -90,9 +118,8 @@ impl History {
             History::default()
         });
         history.dir = images_dir();
-        for item in &mut history.items {
-            item.lower = item.text.to_lowercase();
-        }
+        // An older or hand-edited file may exceed the budget; apply it now so the list in RAM is bounded too.
+        history.truncate(usize::MAX);
         // Only trust a history we actually read: with a lost or corrupt file the images may still be restorable.
         if sweep {
             history.sweep_orphans();
@@ -147,7 +174,6 @@ impl History {
         self.items.insert(
             0,
             Item {
-                lower: text.to_lowercase(),
                 text,
                 html,
                 image: None,
@@ -186,7 +212,6 @@ impl History {
                 text: String::new(),
                 html: None,
                 image: Some(image),
-                lower: String::new(),
             },
         );
         self.rev += 1;
@@ -207,10 +232,21 @@ impl History {
         })
     }
 
-    /// Keeps the newest `max` entries; the dropped ones take their image files with them.
+    /// Keeps the newest `max` entries, and only as many as fit in `MAX_TOTAL_BYTES` of text; the dropped ones take
+    /// their image files with them.
     fn truncate(&mut self, max: usize) {
-        if self.items.len() > max {
-            let dropped = self.items.split_off(max);
+        let mut keep = self.items.len().min(max);
+        let (mut text, mut images) = (0, 0);
+        for (i, item) in self.items.iter().enumerate().take(keep) {
+            text += item.text.len() + item.html.as_ref().map_or(0, String::len);
+            images += item.image.as_ref().map_or(0, |im| im.bytes as usize);
+            if text > MAX_TOTAL_BYTES || images > MAX_IMAGE_TOTAL_BYTES {
+                keep = i; // a single item is at most 8 MB, so the newest one always stays
+                break;
+            }
+        }
+        if self.items.len() > keep {
+            let dropped = self.items.split_off(keep);
             self.delete_files(&dropped);
         }
     }
@@ -225,10 +261,15 @@ impl History {
     /// Indexes into `items()` whose text contains every word of `query` (case-insensitive); all when blank.
     /// An image has no text, so it only shows up while the query is blank.
     pub fn search(&self, query: &str) -> Vec<usize> {
-        let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+        // Char by char, like `contains_ci` does with the text: `str::to_lowercase` turns a final Σ into ς, which would
+        // never match the σ the text side produces.
+        let words: Vec<String> = query
+            .split_whitespace()
+            .map(|w| w.chars().flat_map(char::to_lowercase).collect())
+            .collect();
         let mut hits = Vec::new();
         for (idx, item) in self.items.iter().enumerate() {
-            if words.iter().all(|w| item.lower.contains(w)) {
+            if words.iter().all(|w| contains_ci(&item.text, w)) {
                 hits.push(idx);
             }
         }
@@ -341,6 +382,74 @@ mod tests {
         h.push("hello there".into(), None, 10);
         assert_eq!(h.search("WORLD hello"), [1]);
         assert_eq!(h.search("").len(), 2);
+        h.push("Ação É ÚTIL".into(), None, 10);
+        assert_eq!(h.search("açÃO útil"), [0], "non-ASCII case folds too");
+        assert!(h.search("zzz").is_empty() && h.search("worlds").is_empty());
+        h.push("ΟΔΟΣ".into(), None, 10);
+        assert_eq!(h.search("ΟΔΟΣ"), [0], "uppercase final sigma");
+        assert_eq!(h.search("οδοσ"), [0]);
+    }
+
+    #[test]
+    fn total_text_budget_drops_the_oldest_and_keeps_the_newest() {
+        let mut h = History::default();
+        let big = "x".repeat(MAX_ITEM_BYTES - 8); // room for the number, or push() refuses it as too big
+        for i in 0..40 {
+            h.push(format!("{i}{big}"), None, 500);
+        }
+        let total: usize = h.items().iter().map(|i| i.text.len()).sum();
+        assert!(
+            total <= MAX_TOTAL_BYTES && h.items().len() >= 30,
+            "{} items",
+            h.items().len()
+        );
+        assert!(h.items()[0].text.starts_with("39"), "the newest stays");
+        // A history file written before the budget existed is trimmed on load.
+        let mut old = History {
+            items: (0..40)
+                .map(|i| Item {
+                    text: format!("{i}{big}"),
+                    html: None,
+                    image: None,
+                })
+                .collect(),
+            ..Default::default()
+        };
+        old.truncate(usize::MAX);
+        assert!(old.items().len() < 40);
+    }
+
+    #[test]
+    fn total_image_budget_drops_the_oldest_images() {
+        let image = |n: usize| Item {
+            text: String::new(),
+            html: None,
+            image: Some(Image {
+                id: format!("fake{n}"), // no files behind it: removing a missing file is ignored
+                width: 1,
+                height: 1,
+                bytes: MAX_IMAGE_BYTES as u32,
+                thumb: false,
+            }),
+        };
+        let mut h = History {
+            items: (0..200).map(image).collect(),
+            ..Default::default()
+        };
+        h.truncate(500);
+        assert_eq!(
+            h.items().len(),
+            MAX_IMAGE_TOTAL_BYTES / MAX_IMAGE_BYTES,
+            "128 images of 8 MiB"
+        );
+        assert_eq!(h.items()[0].image.as_ref().unwrap().id, "fake0", "the newest stays");
+    }
+
+    #[test]
+    fn image_ids_never_change() {
+        // Known FNV-1a vectors: a stored id must keep matching the same image across releases.
+        assert_eq!(id_of(b""), "cbf29ce4842223250");
+        assert_eq!(id_of(b"a"), "af63dc4c8601ec8c1");
     }
 
     #[test]

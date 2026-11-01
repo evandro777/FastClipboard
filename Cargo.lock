@@ -980,12 +980,11 @@ dependencies = [
 
 [[package]]
 name = "fastpaste"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "fastpaste-core",
  "ksni",
  "png",
- "raw-window-handle",
  "slint",
  "slint-build",
  "x11rb",
@@ -995,7 +994,7 @@ dependencies = [
 
 [[package]]
 name = "fastpaste-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "serde",
  "toml",

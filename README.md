@@ -17,7 +17,7 @@ Landing page: <https://evandro777.github.io/FastPaste/>
 
 ## Features
 
-- History of text, HTML and images, deduplicated, up to 500 entries; search as you type
+- History of text, HTML and images, deduplicated, up to 500 entries (fewer when the copies are huge: see the size limits below); search as you type
 - Keyboard first: **Ctrl+Alt+V** opens it, arrows and `Enter` paste, `Shift+Enter` for plain text, text transforms and OCR
 - Opens centered on the mouse pointer, inside that monitor, and pastes back into the app you were using
 - Tray icon (Open, Preferences, Quit) and start at login
@@ -79,7 +79,7 @@ next to the search box opens the preferences too.
 | Alt+D       | delete the entry                                            |
 | Esc         | close                                                       |
 
-Text, HTML and **images** (PNG or JPEG, stored as PNG, up to 8 MB) are recorded. An image shows as a thumbnail with its size; Enter pastes
+Text, HTML and **images** (PNG or JPEG, stored as PNG, up to 8 MB; a JPEG over 8 megapixels is skipped) are recorded. Size limits: all text together is capped at 32 MiB and all images together at 1 GiB, and the oldest entries go first. A copy that is skipped for size is reported on stderr. An image shows as a thumbnail with its size; Enter pastes
 the original PNG. Plain text and the other menu transforms paste text only (they do not change the stored entry).
 
 The popup opens centered on the mouse pointer (kept inside that monitor), remembers the size you give it, and closes when it

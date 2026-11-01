@@ -11,7 +11,6 @@ description = "Light and fast Linux app built in Rust with Slint."
 [dependencies]
 fastpaste-core = { path = "../core" }
 slint = { version = "1.18", default-features = false, features = ["std", "backend-winit", "renderer-software", "software-renderer-systemfonts", "compat-1-2", "unstable-winit-030"] }
-raw-window-handle = "0.6"
 png = "0.18"
 # JPEG copies are converted to PNG when recorded.
 zune-jpeg = "0.5.15"

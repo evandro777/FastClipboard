@@ -118,7 +118,7 @@ export component Main inherits Window {
             } else if (e.text == Key.Tab) {
                 // Nothing to do, but it must not move the focus away from the search box.
                 return accept;
-            } else if (e.modifiers.alt && e.text == "d") {
+            } else if (e.modifiers.alt && e.text.to-lowercase() == "d") {
                 root.remove(root.current);
                 return accept;
             }

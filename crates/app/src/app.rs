@@ -15,10 +15,15 @@ use fastpaste_core::{
     settings::{MIN_SIZE, Settings},
     transform::Transform,
 };
-use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{
     ComponentHandle, ModelRc, PhysicalPosition, Timer, VecModel,
-    winit_030::{EventResult, WinitWindowAccessor, winit},
+    winit_030::{
+        EventResult, WinitWindowAccessor,
+        winit::{
+            self,
+            raw_window_handle::{HasWindowHandle, RawWindowHandle},
+        },
+    },
 };
 
 use crate::{
@@ -149,9 +154,11 @@ pub fn run(ui: Main, settings: Settings) {
             for data in rx {
                 // Converted (JPEG), validated and thumbnailed before taking the lock: decoding takes a moment.
                 let Some(png) = images::to_png(data) else {
+                    eprintln!("image skipped: not a PNG or a JPEG of at most 8 megapixels");
                     continue;
                 };
                 let Some(size) = images::size(&png) else {
+                    eprintln!("image skipped: not a valid PNG");
                     continue;
                 };
                 let thumb = images::thumbnail(&png);
@@ -167,6 +174,13 @@ pub fn run(ui: Main, settings: Settings) {
                 let mut h = history.lock().unwrap();
                 if h.push_image(&png, thumb.as_deref(), size, max.load(Ordering::SeqCst)) {
                     h.save();
+                } else {
+                    // push_image reports a write error itself; the other reason is the size cap.
+                    eprintln!(
+                        "image skipped: {} bytes as PNG, the limit is {} (or it could not be stored)",
+                        png.len(),
+                        fastpaste_core::history::MAX_IMAGE_BYTES
+                    );
                 }
             }
         });
@@ -677,6 +691,11 @@ impl App {
     }
 
     pub fn open_prefs(&self) {
+        // Already open: bring it back instead of rebuilding it, which would throw away what the user typed.
+        if let Some(win) = self.prefs.borrow().as_ref().filter(|w| w.window().is_visible()) {
+            let _ = win.show();
+            return;
+        }
         let win = Preferences::new().unwrap();
         {
             let s = self.settings.borrow();
@@ -886,13 +905,29 @@ fn held_text(mods: [bool; 4]) -> String {
 }
 
 /// A list row is one line: whitespace and newlines collapse, and very long text is cut (the full text is still pasted).
+/// Stops after 200 characters: a search builds a row for every match, and an entry can be 1 MiB.
 fn one_line(text: &str) -> String {
-    text.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .take(200)
-        .collect()
+    let (mut out, mut n, mut gap) = (String::new(), 0, false);
+    for c in text.chars() {
+        if c.is_whitespace() {
+            gap = n > 0; // leading whitespace is dropped, a run of it becomes one space
+            continue;
+        }
+        if n >= 200 {
+            break;
+        }
+        if gap {
+            out.push(' ');
+            n += 1;
+            gap = false;
+            if n >= 200 {
+                break;
+            }
+        }
+        out.push(c);
+        n += 1;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -939,5 +974,12 @@ mod tests {
     fn rows_are_single_line_and_bounded() {
         assert_eq!(one_line("a\n\n  b\tc"), "a b c");
         assert_eq!(one_line(&"x".repeat(500)).len(), 200);
+        assert_eq!(one_line("  \n lead and trail \t\n"), "lead and trail");
+        assert_eq!(
+            one_line(&format!("{} b", "é".repeat(199))).chars().count(),
+            200,
+            "cut by characters"
+        );
+        assert_eq!(one_line(&format!("{} b", "é".repeat(200))).chars().count(), 200);
     }
 }

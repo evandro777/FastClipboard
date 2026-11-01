@@ -8,6 +8,8 @@ use slint::{Rgba8Pixel, SharedPixelBuffer};
 /// Largest image (in pixels) decoded for a thumbnail: 20 Mpix is about 80 MB of RGBA while it is being decoded.
 /// Bigger images are still stored and pasted, they just show no thumbnail.
 const MAX_THUMB_SOURCE_PIXELS: u64 = 20_000_000;
+/// Largest JPEG (in pixels) converted to PNG.
+const MAX_JPEG_PIXELS: u64 = 8_000_000;
 /// The thumbnail is fitted into this box. The list shows it at half size, so it stays sharp on HiDPI screens.
 const THUMB_BOX: (u32, u32) = (192, 96);
 
@@ -29,7 +31,9 @@ pub fn to_png(data: Vec<u8>) -> Option<Vec<u8>> {
     let mut decoder = JpegDecoder::new_with_options(ZCursor::new(&data), options);
     decoder.decode_headers().ok()?;
     let info = decoder.info()?;
-    if u64::from(info.width) * u64::from(info.height) > MAX_THUMB_SOURCE_PIXELS {
+    // As PNG a photo takes 2-3 bytes per pixel, so above this it would exceed the 8 MB cap after all the work of
+    // decoding and encoding it.
+    if u64::from(info.width) * u64::from(info.height) > MAX_JPEG_PIXELS {
         return None;
     }
     let rgba = decoder.decode().ok()?;
