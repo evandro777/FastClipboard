@@ -5,7 +5,7 @@ name: VirusTotal
 # The release is created with GITHUB_TOKEN, which does not fire `release` events, hence workflow_run.
 on:
   workflow_run:
-    workflows: [AppImage]
+    workflows: [AppImage, Flatpak]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -15,6 +15,12 @@ on:
 
 permissions:
   contents: read
+
+# Both workflows end in a scan that reads the release notes, appends a section and writes them back (minutes later):
+# one at a time per tag, or the second would overwrite the first.
+concurrency:
+  group: virustotal-${{ inputs.tag || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
 
 jobs:
   scan:
@@ -32,8 +38,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
           TAG: ${{ inputs.tag || github.event.workflow_run.head_branch }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
         run: |
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "FastPaste-*.AppImage" --dir assets
+          # The workflow that just finished says which asset to scan; a manual run scans both.
+          case "$WORKFLOW" in
+            AppImage) section=appimage; patterns=(--pattern "FastPaste-*.AppImage") ;;
+            Flatpak) section=flatpak; patterns=(--pattern "FastPaste-*.flatpak") ;;
+            *) section=manual; patterns=(--pattern "FastPaste-*.AppImage" --pattern "FastPaste-*.flatpak") ;;
+          esac
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" "${patterns[@]}" --dir assets
           : > report.md
           bad=0
           for file in assets/*; do
@@ -66,10 +79,14 @@ jobs:
             fi
             echo "- $icon **$name**: $text. [Report](https://www.virustotal.com/gui/file/$sha)" >> report.md
           done
-          body=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body)
+          # The section sits between markers, so a rerun replaces it instead of adding a second one.
+          body=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body |
+            sed "/<!-- vt:$section -->/,/<!-- \/vt:$section -->/d")
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$body
 
-          ## VirusTotal
+          <!-- vt:$section -->
+          ## VirusTotal ($section)
 
-          $(cat report.md)"
+          $(cat report.md)
+          <!-- /vt:$section -->"
           exit $bad

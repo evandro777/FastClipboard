@@ -3,6 +3,48 @@
 A tiny clipboard history for Linux (X11), inspired by CopyQ. Rust + Slint, software renderer, no GL. It runs in the
 background, remembers what you copy (text and HTML) and brings it back with a global shortcut.
 
+Landing page: <https://evandro777.github.io/FastPaste/>
+
+## Install
+
+### Flatpak: easy install with automatic updates
+
+Every release is also published as a Flatpak remote, so `flatpak update` (or your software centre) keeps FastPaste current.
+A `.flatpak` file from Releases follows the same remote, so it updates too.
+
+```bash
+flatpak remote-add --system --if-not-exists fastpaste https://evandro777.github.io/FastPaste/fastpaste.flatpakrepo
+flatpak install --system fastpaste io.github.evandro777.FastPaste
+```
+
+**`--system` vs `--user` matters for updates.** Linux Mint's Update Manager only looks at *system-wide* Flatpaks; a `--user`
+install never appears there (update it by hand with `flatpak update --user`). The remote is GPG-signed, but the key lives in
+this repository, so it is only as trustworthy as the repository. The runtime comes from Flathub
+(`flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`, with `--system` or `--user`).
+
+For a desktop shortcut use the command `flatpak run io.github.evandro777.FastPaste --toggle`.
+
+- **Start at login** asks the desktop through the Background portal; if you refuse, reset it with
+  `flatpak permission-reset io.github.evandro777.FastPaste`.
+- **OCR in Flatpak:** the sandbox cannot see the host's `tesseract`. It is off unless you grant it, on your own account:
+
+  ```bash
+  flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste
+  ```
+
+  FastPaste then runs the host's `tesseract` through `flatpak-spawn --host`. This lets it start commands outside the sandbox,
+  which removes most of what the sandbox protects, so it is your choice. The AppImage does not need it.
+- The Flatpak keeps its data in `~/.var/app/io.github.evandro777.FastPaste/`, separate from the AppImage's. Run one of the
+  two, not both: the second one cannot take the shortcut.
+
+### AppImage (with delta updates)
+
+Download `FastPaste-<version>-x86_64.AppImage` from Releases, `chmod +x` it and run it. It uses the fontconfig, xkbcommon and
+X11 libraries already on your system. It carries update information, so AppImageUpdate, Gear Lever or AppManager download only
+the changed parts; it does not update itself.
+
+### From source
+
 ```bash
 cargo run --profile fast
 ```

@@ -694,10 +694,17 @@ impl App {
                 app.close_prefs();
             }
         });
-        win.on_set_autostart(|on| {
-            if let Err(e) = autostart::set(on) {
-                eprintln!("cannot change the autostart entry: {e}");
-            }
+        let weak = win.as_weak();
+        win.on_set_autostart(move |on| {
+            let weak = weak.clone();
+            // A thread: in Flatpak the portal blocks while the desktop asks the user.
+            std::thread::spawn(move || {
+                if let Err(e) = autostart::set(on) {
+                    eprintln!("cannot change the autostart entry: {e}");
+                    // Put the switch back to what is really set.
+                    let _ = weak.upgrade_in_event_loop(|w| w.set_autostart(autostart::is_enabled()));
+                }
+            });
         });
         win.on_clear_history(|| post(App::clear_history));
         win.on_quit(|| {

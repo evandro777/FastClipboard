@@ -22,7 +22,13 @@ pub fn command() -> &'static str {
 /// None without `XDG_RUNTIME_DIR`: a shared directory such as `/tmp` would let other users block the
 /// socket or send commands to it.
 fn socket_path() -> Option<PathBuf> {
-    Some(PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?).join("fastpaste.sock"))
+    let dir = PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?);
+    // Every `flatpak run` gets its own sandbox, and only this per-app directory is shared between them
+    // (the rest of the runtime dir is a private tmpfs).
+    Some(match std::env::var("FLATPAK_ID") {
+        Ok(app) => dir.join("app").join(app).join("fastpaste.sock"),
+        Err(_) => dir.join("fastpaste.sock"),
+    })
 }
 
 /// Send `command` to a running instance. Returns false if none is listening.

@@ -13,9 +13,21 @@ fn valid_lang(lang: &str) -> bool {
             .all(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
 }
 
+/// The sandbox cannot see the host's tesseract; `flatpak-spawn --host` reaches it, but only once the user has granted
+/// `org.freedesktop.Flatpak` (see the README), so that is a deliberate opt-in.
+fn tesseract() -> Command {
+    if crate::autostart::in_flatpak() {
+        let mut c = Command::new("flatpak-spawn");
+        c.args(["--host", "tesseract"]);
+        c
+    } else {
+        Command::new("tesseract")
+    }
+}
+
 /// Language packs `tesseract --list-langs` reports (empty when tesseract cannot run).
 fn installed() -> Vec<String> {
-    Command::new("tesseract")
+    tesseract()
         .arg("--list-langs")
         .output()
         .map(|o| {
@@ -60,7 +72,7 @@ pub fn extract(png: &[u8], lang: &str) -> Result<String, String> {
     if !valid_lang(lang) {
         return Err(format!("ocr_lang \"{lang}\" is not like \"eng+por\""));
     }
-    let mut child = Command::new("tesseract")
+    let mut child = tesseract()
         .args(["stdin", "stdout", "-l", lang])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -71,10 +83,13 @@ pub fn extract(png: &[u8], lang: &str) -> Result<String, String> {
     let written = child.stdin.take().map(|mut stdin| stdin.write_all(png));
     let out = child.wait_with_output().map_err(|e| e.to_string())?;
     if !out.status.success() {
-        return Err(format!(
-            "tesseract failed: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
+        let why = String::from_utf8_lossy(&out.stderr);
+        let hint = if crate::autostart::in_flatpak() {
+            " (in Flatpak OCR needs: flatpak override --user --talk-name=org.freedesktop.Flatpak $FLATPAK_ID, and tesseract on the host)"
+        } else {
+            ""
+        };
+        return Err(format!("tesseract failed: {}{hint}", why.trim()));
     }
     if let Some(Err(e)) = written {
         return Err(format!("cannot send the image to tesseract: {e}"));

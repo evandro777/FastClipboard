@@ -17,6 +17,8 @@ png = "0.18"
 zune-jpeg = "0.5.15"
 # async-io instead of the default tokio: no async runtime in this app.
 ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"] }
+# Already in the tree through ksni (same features); direct use is the Background portal for autostart in Flatpak.
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 x11rb = { version = "0.13", default-features = false, features = ["xfixes", "xtest"] }
 
 [build-dependencies]

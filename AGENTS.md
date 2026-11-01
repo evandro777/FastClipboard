@@ -88,7 +88,8 @@ packaging/                .desktop, icon, metainfo (used by the AppImage and CI 
 appimage/build.sh         AppImage + .zsync (host libs, not bundled); CI: appimage.yml
 dev/gen_po.py             writes the .po files from one table
 scripts/ui-snapshot.sh    renders pages on a private Xvfb with canned data (crates/app/src/fixtures.rs, env FASTPASTE_FIXTURES=empty|single|many, FASTPASTE_PAGE=<n>) to target/ui-snapshots/
-optional/flatpak/         notes on adding Flatpak back (not wired into CI)
+flatpak/                  manifest, build.sh (vendors crates, builds outside the repo: `~/.cache/fastpaste-flatpak`), signing key (public half); CI: flatpak.yml
+docs/                     landing page (`site/index.html`, deployed with the Flatpak remote), `screenshots/`, `FLATHUB.md`
 ```
 
 ## Commands
@@ -143,7 +144,27 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 
 Work on branches, PRs to `master`. CI: `ci.yml` (fmt, clippy, tests, MSRV, metainfo/desktop validation), `appimage.yml` (AppImage on every push/PR; on a `v*` tag it attaches to the release), `virustotal.yml` (scans release assets; needs the `VIRUSTOTAL_API_KEY` secret). `RELEASING.md` has the steps. Never commit or push on the owner's behalf.
 
+## Flatpak
+
+App id `io.github.evandro777.FastPaste`; `flatpak/build.sh --devel` installs `...FastPaste.Devel` next to a release. Needs `flatpak-builder` and
+`org.freedesktop.Sdk//25.08` + `org.freedesktop.Sdk.Extension.rust-stable//25.08`. **Not built or run yet**: verify the tray, hotkey, paste and the
+socket inside the sandbox first.
+
+- Permissions: `--share=ipc`, `--socket=x11` (X11 has no sandbox, so XFixes/XGrabKey/XTest work as on the host) and
+  `--talk-name=org.kde.StatusNotifierWatcher`. Nothing else; keep it that way.
+- Inside the sandbox (`FLATPAK_ID` set, `autostart::in_flatpak`): the instance socket is `$XDG_RUNTIME_DIR/app/$FLATPAK_ID/fastpaste.sock` (the only
+  dir shared between `flatpak run`s); the tray is built with `disable_dbus_name(true)` (ksni's pid-based bus name may not be owned);
+  Start at login goes through the Background portal (`autostart::portal`, blocks while the desktop asks, so `app.rs` calls it from a thread
+  and resets the switch on a refusal); OCR runs `flatpak-spawn --host tesseract` (`ocr::tesseract`), which works only after the user's
+  `flatpak override --talk-name=org.freedesktop.Flatpak`. Do not add that permission to the manifest.
+- Auto-update = our own signed OSTree remote on GitHub Pages (`flatpak.yml`: `bundle` → `pages` → `release`), deployed on `v*` tags only.
+  Every deploy replaces the whole site, so never deploy Pages from another trigger. The public key is `flatpak/signing-key.b64` (base64 of the
+  binary export); the private half is the secret `FLATPAK_GPG_PRIVATE_KEY`. RELEASING.md lists the one-time setup.
+- **Flathub policy:** manifests must NOT contain AI-generated content and AI must not open the submission PR. Do not write a Flathub manifest
+  or submission text for the owner; `docs/FLATHUB.md` explains the process.
+- The build vendors crates (`cargo vendor`), so `flatpak/vendor` must not be in the manifest's `skip:`. Keep build dirs out of the repo (Dropbox).
+
 ## Open items
 
-- Not done: Wayland, image formats other than PNG and JPEG. See `TODO.md`.
+- Not done: Wayland, image formats other than PNG and JPEG, a first real Flatpak build and run. See `TODO.md`.
 

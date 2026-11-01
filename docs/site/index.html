@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FastPaste</title>
+<meta name="description" content="A light and fast clipboard history for Linux (X11), written in Rust. Press a shortcut, search, paste.">
+<meta property="og:title" content="FastPaste: clipboard history for Linux">
+<meta property="og:description" content="A light and fast clipboard history for Linux (X11), written in Rust. Press a shortcut, search, paste.">
+<meta property="og:image" content="https://evandro777.github.io/FastPaste/screenshots/popup.png">
+<style>
+  :root { --bg:#fff; --fg:#1d1d20; --muted:#5f6368; --card:#f4f5f7; --accent:#0b7d3c; --border:#dadce0; --warn:#fff4d6; --warn-fg:#5c4400; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#17181a; --fg:#ececee; --muted:#9aa0a6; --card:#222427; --accent:#4cc38a; --border:#34373b; --warn:#33290d; --warn-fg:#f0d98a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 0 16px 64px; }
+  header { padding: 56px 0 16px; text-align: center; }
+  h1 { font-size: 2.6rem; margin: 0; }
+  .tag { color: var(--muted); font-size: 1.15rem; margin: 8px 0 0; }
+  h2 { margin-top: 48px; }
+  a { color: var(--accent); }
+  kbd { background:var(--card); border:1px solid var(--border); border-bottom-width:2px; border-radius:6px; padding:1px 7px; font:.9em ui-monospace, monospace; }
+  .callout { background:var(--warn); color:var(--warn-fg); border-radius:10px; padding:10px 16px; margin:20px 0 0; text-align:center; }
+  .shots { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:28px; align-items:start; }
+  .shots img { width:100%; height:auto; border-radius:10px; border:1px solid var(--border); }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .card { background:var(--card); border-radius:10px; padding:14px 16px; }
+  .card b { display:block; color:var(--accent); }
+  .card span { color:var(--muted); font-size:.92rem; }
+  pre { background:var(--card); padding:14px; border-radius:10px; overflow-x:auto; font-size:.9rem; }
+  details { background:var(--card); border-radius:10px; padding:10px 16px; margin:12px 0; }
+  summary { cursor:pointer; font-weight:600; }
+  small, .note { color:var(--muted); }
+  @media (max-width: 640px) { .shots { grid-template-columns: 1fr; } h1 { font-size: 2.1rem; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>FastPaste</h1>
+    <p class="tag">A clipboard history for Linux that is light and fast.</p>
+    <p>Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>V</kbd>, search, press <kbd>Enter</kbd>.</p>
+    <p><a href="https://github.com/evandro777/FastPaste">GitHub</a> ·
+       <a href="https://github.com/evandro777/FastPaste/releases">Releases</a></p>
+    <p class="callout"><b>X11 only for now.</b> Tested on Linux Mint Cinnamon. Wayland does not allow a global shortcut or clipboard watching.</p>
+  </header>
+
+  <div class="shots">
+    <img src="screenshots/popup.png" width="600" height="450" alt="The FastPaste popup: a search box over the clipboard history, with the Shift+Enter menu open on a copied image">
+    <img src="screenshots/preferences.png" width="440" height="470" alt="FastPaste preferences: shortcut, entries kept, language, start at login" loading="lazy">
+  </div>
+
+  <h2>What it does</h2>
+  <p>A background process records what you copy. The shortcut opens a popup on the mouse pointer; the pick is pasted into
+     the app you were using. Written in Rust with Slint, software rendering only, no async runtime.</p>
+  <div class="grid">
+    <div class="card"><b>History</b><span>Text, HTML and images, deduplicated, up to 500 entries.</span></div>
+    <div class="card"><b>Search</b><span>Type to filter the history as you go.</span></div>
+    <div class="card"><b>Images</b><span>PNG and JPEG copies with thumbnails in the list.</span></div>
+    <div class="card"><b>Shift+Enter options</b><span>Paste as plain text, or trim, UPPER, lower and one-line transforms.</span></div>
+    <div class="card"><b>OCR (optional)</b><span>Paste the text of a copied image, with tesseract installed.</span></div>
+    <div class="card"><b>Tray and autostart</b><span>Tray icon with Open, Preferences and Quit; start at login.</span></div>
+    <div class="card"><b>Private</b><span>Everything stays on your machine. Copies from password managers are skipped; files are readable only by you.</span></div>
+    <div class="card"><b>Translated</b><span>English and Português (Brasil), following the system locale.</span></div>
+  </div>
+
+  <h2>Install with Flatpak (updates itself)</h2>
+  <p>This remote keeps FastPaste updated with <code>flatpak update</code> and your software centre:</p>
+<pre>flatpak remote-add --system --if-not-exists fastpaste https://evandro777.github.io/FastPaste/fastpaste.flatpakrepo
+flatpak install --system fastpaste io.github.evandro777.FastPaste</pre>
+  <p><small>Use <code>--system</code>: Linux Mint's Update Manager only looks at system-wide Flatpaks. The runtime comes from
+     Flathub. The remote is GPG-signed, but the key lives in the
+     <a href="https://github.com/evandro777/FastPaste">source repository</a>, so it is only as trustworthy as that.</small></p>
+  <p>For a desktop shortcut, bind a key to:</p>
+<pre>flatpak run io.github.evandro777.FastPaste --toggle</pre>
+  <details>
+    <summary>OCR in the Flatpak</summary>
+    <p>The sandbox cannot see the host's <code>tesseract</code>. If you want OCR, install tesseract on the host and let the
+       app run it there:</p>
+<pre>flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste</pre>
+    <p><small>This lets FastPaste start commands outside the sandbox, which removes most of what the sandbox protects.
+       It is off by default; the AppImage has OCR without it.</small></p>
+  </details>
+
+  <h2>Or the AppImage</h2>
+  <p>Download <code>FastPaste-&lt;version&gt;-x86_64.AppImage</code> from the
+     <a href="https://github.com/evandro777/FastPaste/releases/latest">latest release</a>, <code>chmod +x</code> it and run it.
+     It uses the fontconfig, xkbcommon and X11 libraries already on your system, and carries update information, so
+     AppImageUpdate, Gear Lever or AppManager download only what changed.</p>
+  <p class="note">Run one of the two, not both: they use different data folders and fight over the shortcut.</p>
+
+  <h2>License</h2>
+  <p>GPL-3.0-or-later. See the <a href="https://github.com/evandro777/FastPaste">repository</a>.</p>
+</main>
+</body>
+</html>

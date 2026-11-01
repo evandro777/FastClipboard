@@ -8,3 +8,9 @@ __pycache__/
 /appimage/AppDir/
 /FastPaste-*.AppImage*
 /squashfs-root/
+/flatpak/vendor/
+/flatpak/repo/
+/flatpak/build-dir/
+/flatpak/.flatpak-builder/
+/flatpak/*.Devel.yml
+*.flatpak

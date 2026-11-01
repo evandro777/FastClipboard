@@ -92,6 +92,8 @@ impl Tray for FastTray {
 /// Keep the returned handle alive for as long as the tray should stay.
 pub fn spawn(labels: Labels, actions: Actions) -> Option<Handle<FastTray>> {
     FastTray { labels, actions }
+        // A sandbox may not own ksni's pid-based bus name; the unique name is enough for the watcher.
+        .disable_dbus_name(crate::autostart::in_flatpak())
         .spawn()
         .inspect_err(|e| eprintln!("no tray icon ({e}); the hotkey still works"))
         .ok()
