@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -96,6 +96,10 @@ struct App {
     focus_timer: Timer,
     paste_attempts: Cell<u32>,
     paste_timer: Timer,
+    /// Last OCR check. Starts as Ready so nothing is greyed out before the first check ends.
+    ocr_status: RefCell<ocr::Status>,
+    /// A check is running; fast hotkey presses must not stack them.
+    ocr_checking: Arc<AtomicBool>,
 }
 
 thread_local! {
@@ -246,8 +250,11 @@ pub fn run(ui: Main, settings: Settings) {
         focus_timer: Timer::default(),
         paste_attempts: Cell::new(0),
         paste_timer: Timer::default(),
+        ocr_status: RefCell::new(ocr::Status::Ready),
+        ocr_checking: Arc::new(AtomicBool::new(false)),
     });
     APP.with(|a| *a.borrow_mut() = Some(app.clone()));
+    app.check_ocr();
 
     ui.on_query_changed({
         let app = app.clone();
@@ -323,6 +330,15 @@ pub fn run(ui: Main, settings: Settings) {
     slint::run_event_loop_until_quit().unwrap();
 }
 
+pub fn fill_ocr(win: &Preferences, status: &ocr::Status) {
+    win.set_ocr_state(status.code());
+    win.set_ocr_missing(status.missing().into());
+    win.set_ocr_command(status.command().into());
+    // Room for the explanation (the window is not resizable, so the layout would otherwise push Save out of view).
+    let height = if status.code() == 0 { 470.0 } else { 560.0 };
+    win.window().set_size(slint::LogicalSize::new(440.0, height));
+}
+
 fn tray_labels(ui: &Main) -> Labels {
     let tr = ui.global::<Tr>();
     Labels {
@@ -364,6 +380,10 @@ impl App {
         ui.set_current(0);
         ui.set_menu_open(false);
         self.refresh();
+        // Only while broken: a working setup is not re-checked on every open.
+        if *self.ocr_status.borrow() != ocr::Status::Ready {
+            self.check_ocr();
+        }
         let (width, height) = {
             let s = self.settings.borrow();
             (s.width as f32, s.height as f32)
@@ -638,11 +658,16 @@ impl App {
             let item = &h.items()[idx];
             if item.image.is_some() {
                 drop(h);
-                return if option == 0 {
-                    self.pick(row, false)
-                } else {
-                    self.ocr(row, transform)
-                };
+                if option == 0 {
+                    return self.pick(row, false);
+                }
+                if *self.ocr_status.borrow() != ocr::Status::Ready {
+                    // The preferences explain what is missing; the popup would close on focus-out while the user
+                    // copies the command.
+                    self.hide();
+                    return self.open_prefs();
+                }
+                return self.ocr(row, transform);
             }
             match transform {
                 Some(t) => t.apply(&item.text),
@@ -653,6 +678,31 @@ impl App {
             }
         };
         self.paste_payload(Payload::Text(text, None));
+    }
+
+    /// Checks tesseract and the language packs in a thread and updates the menu and the preferences when it ends.
+    fn check_ocr(&self) {
+        if self.ocr_checking.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let (lang, ui_lang) = {
+            let s = self.settings.borrow();
+            (s.ocr_lang.clone(), crate::language(&s))
+        };
+        let checking = self.ocr_checking.clone();
+        std::thread::spawn(move || {
+            let status = ocr::status(&lang, &ui_lang);
+            checking.store(false, Ordering::SeqCst);
+            post(move |app| app.set_ocr_status(status));
+        });
+    }
+
+    fn set_ocr_status(&self, status: ocr::Status) {
+        self.ui().set_ocr_ready(status == ocr::Status::Ready);
+        if let Some(win) = self.prefs.borrow().as_ref() {
+            fill_ocr(win, &status);
+        }
+        *self.ocr_status.borrow_mut() = status;
     }
 
     /// Pastes the text tesseract finds in the picture (not added to the history), with `transform` applied.
@@ -753,6 +803,9 @@ impl App {
             })
         });
         win.set_autostart(autostart::is_enabled());
+        fill_ocr(&win, &self.ocr_status.borrow());
+        // The user may have installed it since the last check; the answer updates the window.
+        self.check_ocr();
         win.set_version(env!("CARGO_PKG_VERSION").into());
         // Before show(), like the popup: the WM must hear the position before it maps the window. The size is the
         // `preferred-*` of the component (440x470).
@@ -797,6 +850,8 @@ impl App {
         if let Some(tray) = self.tray.borrow().as_ref() {
             tray::set_labels(tray, tray_labels(&self.ui()));
         }
+        // The automatic OCR languages follow the interface language.
+        self.check_ocr();
         self.close_prefs();
         0
     }

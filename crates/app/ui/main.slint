@@ -27,6 +27,9 @@ export component Main inherits Window {
     // everything after "Original" is applied to the text OCR finds in it; both lists have the same positions.
     callback choose(int, int);
     in-out property <bool> menu-open;
+    // False when tesseract or a language pack is missing: the OCR entries are dimmed, and picking one opens the
+    // preferences, which say what to install.
+    in property <bool> ocr-ready: true;
     property <int> menu-index;
     property <[string]> text-options: [
         @tr("Original"), @tr("Plain text"), @tr("Trim"), @tr("UPPER CASE"), @tr("lower case"), @tr("One line"),
@@ -238,13 +241,15 @@ export component Main inherits Window {
             VerticalLayout {
                 padding: 1px;
                 for option[i] in root.options: Rectangle {
+                    property <bool> unavailable: i >= 1 && root.rows[root.current].is-image && !root.ocr-ready;
                     height: 30px;
                     background: i == root.menu-index ? Palette.selection-background
                         : option-touch.has-hover ? Palette.foreground.with-alpha(0.12) : transparent;
                     Text {
                         x: 10px;
                         text: option;
-                        color: i == root.menu-index ? Palette.selection-foreground : Palette.foreground;
+                        color: (i == root.menu-index ? Palette.selection-foreground : Palette.foreground)
+                            .with-alpha(unavailable ? 0.45 : 1.0);
                         vertical-alignment: center;
                     }
                     option-touch := TouchArea {
@@ -279,6 +284,11 @@ export component Preferences inherits Window {
     in-out property <[bool]> held: [false, false, false, false];
     in-out property <bool> about-open;
     in-out property <bool> confirm-clear;
+    // Why OCR cannot run: 0 fine, 1 Flatpak without permission, 2 no tesseract, 3 language packs missing (`ocr-missing`).
+    // `ocr-command` is what to run to fix it.
+    in property <int> ocr-state;
+    in property <string> ocr-missing;
+    in property <string> ocr-command;
     // Returns the error code, 0 when saved.
     callback save(string, string, int) -> int;
     callback cancel();
@@ -333,6 +343,30 @@ export component Preferences inherits Window {
                 text: @tr("Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed.");
                 wrap: word-wrap;
                 color: Palette.foreground.with-alpha(0.6);
+            }
+            if root.ocr-state != 0: VerticalLayout {
+                spacing: 6px;
+                Text {
+                    wrap: word-wrap;
+                    color: #e5a50a;
+                    text: root.ocr-state == 1 ? @tr("OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):")
+                        : root.ocr-state == 2 ? @tr("OCR needs tesseract, which is not installed. Install it, with English, then see the help page.")
+                        : @tr("OCR languages not installed: {}. Install them, then see the help page.", root.ocr-missing);
+                }
+                // Read-only TextInput: the command can be selected and copied.
+                if root.ocr-command != "": TextInput {
+                    text: root.ocr-command;
+                    read-only: true;
+                    wrap: word-wrap;
+                    font-family: "monospace";
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    Button {
+                        text: @tr("Help page");
+                        clicked => { root.open-url("https://github.com/evandro777/FastPaste/blob/master/BUILD.md#text-from-an-image-ocr"); }
+                    }
+                }
             }
             HorizontalLayout {
                 spacing: 12px;

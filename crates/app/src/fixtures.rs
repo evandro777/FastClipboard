@@ -22,6 +22,17 @@ pub fn page() -> usize {
         .unwrap_or(0)
 }
 
+/// `FASTPASTE_OCR=noperm|notesseract|missing`: the OCR state to draw (default ready). tesseract is never run.
+fn ocr_status() -> crate::ocr::Status {
+    use crate::ocr::Status;
+    match std::env::var("FASTPASTE_OCR").as_deref() {
+        Ok("noperm") => Status::NoPermission,
+        Ok("notesseract") => Status::NoTesseract,
+        Ok("missing") => Status::MissingLang(vec!["por".into(), "spa".into()]),
+        _ => Status::Ready,
+    }
+}
+
 /// The preferences window; the three modes show the defaults, Portuguese selected, and an error message.
 pub fn prefs(mode: usize) -> Preferences {
     let win = Preferences::new().unwrap();
@@ -31,6 +42,7 @@ pub fn prefs(mode: usize) -> Preferences {
     win.set_error(if mode == 2 { 3 } else { 0 });
     win.set_autostart(mode == 1);
     win.set_version(env!("CARGO_PKG_VERSION").into());
+    crate::app::fill_ocr(&win, &ocr_status());
     // The overlays are part of the snapshots: the clear-history warning (single) and the About screen (many).
     win.set_confirm_clear(mode == 1);
     win.set_about_open(mode == 2);
@@ -106,4 +118,5 @@ pub fn apply(ui: &Main, mode: usize) {
     ui.set_hidden(if mode == 2 { 30 } else { 0 });
     // The Shift+Enter menu is part of the "many" snapshot.
     ui.set_menu_open(mode == 2);
+    ui.set_ocr_ready(ocr_status() == crate::ocr::Status::Ready);
 }

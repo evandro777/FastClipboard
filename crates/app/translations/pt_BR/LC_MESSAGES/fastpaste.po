@@ -88,6 +88,22 @@ msgid "Also used to read text from images (OCR): this language first, then Engli
 msgstr "Também usado para ler texto de imagens (OCR): este idioma primeiro, depois inglês, se os pacotes do tesseract estiverem instalados."
 
 msgctxt "Preferences"
+msgid "OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):"
+msgstr "OCR desativado: o FastPaste não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"
+
+msgctxt "Preferences"
+msgid "OCR needs tesseract, which is not installed. Install it, with English, then see the help page."
+msgstr "O OCR precisa do tesseract, que não está instalado. Instale-o, com o inglês, e veja a página de ajuda."
+
+msgctxt "Preferences"
+msgid "OCR languages not installed: {}. Install them, then see the help page."
+msgstr "Idiomas do OCR não instalados: {}. Instale-os e veja a página de ajuda."
+
+msgctxt "Preferences"
+msgid "Help page"
+msgstr "Página de ajuda"
+
+msgctxt "Preferences"
 msgid "Use modifiers and one letter or digit, like ctrl+alt+v."
 msgstr "Use modificadores e uma letra ou dígito, como ctrl+alt+v."
 

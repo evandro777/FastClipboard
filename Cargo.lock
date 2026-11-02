@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "fastpaste"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "fastpaste-core",
  "ksni",
@@ -994,7 +994,7 @@ dependencies = [
 
 [[package]]
 name = "fastpaste-core"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "serde",
  "toml",

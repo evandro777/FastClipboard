@@ -58,10 +58,7 @@ flatpak/build.sh --devel      # installs io.github.evandro777.FastPaste.Devel ne
 flatpak run io.github.evandro777.FastPaste.Devel
 ```
 
-`flatpak/build.sh` without `--devel` builds the real id; `--bundle` also writes `flatpak/fastpaste.flatpak`. Crates are
-vendored into `flatpak/vendor` (git-ignored) because the sandboxed build has no network, and the build tree goes to
-`~/.cache/fastpaste-flatpak` (set `FASTPASTE_FLATPAK_CACHE` to move it), so it stays out of the repository. The sandbox only gets
-the X11 socket, IPC and the tray's D-Bus name. Settings live in `~/.var/app/io.github.evandro777.FastPaste/data/FastPaste/`.
+`flatpak/build.sh` without `--devel` builds the real id; `--bundle` also writes `flatpak/fastpaste.flatpak`. Crates are vendored into `flatpak/vendor` (git-ignored) because the sandboxed build has no network, and the build tree goes to `~/.cache/fastpaste-flatpak` (set `FASTPASTE_FLATPAK_CACHE` to move it), so it stays out of the repository. The sandbox only gets the X11 socket, IPC and the tray's D-Bus name. Settings live in `~/.var/app/io.github.evandro777.FastPaste/data/FastPaste/`.
 
 How the signed remote is built on GitHub: [`docs/FLATPAK-SIGNING.md`](docs/FLATPAK-SIGNING.md).
 
@@ -73,11 +70,7 @@ appimage/build.sh             # needs appimagetool on PATH; writes FastPaste-<ve
 
 ## Settings and data
 
-**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the shortcut (click it and press the new keys), the number of
-entries kept and the language, and applies them on Save without a restart. A shortcut that another program already
-holds is refused. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the
-desktop through the Background portal), **Clear history** (asks first) and **About**. The same values live in
-`$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
+**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the shortcut (click it and press the new keys), the number of entries kept and the language, and applies them on Save without a restart. A shortcut that another program already holds is refused. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the desktop through the Background portal), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
 
 - `hotkey`: modifiers (`ctrl`, `alt`, `shift`, `super`) plus one letter or digit, default `"ctrl+alt+v"`.
 - `max_items`: how many entries are kept, default `500` (the window accepts 10 to 5000).
@@ -85,32 +78,33 @@ desktop through the Background portal), **Clear history** (asks first) and **Abo
 - `ocr_lang`: tesseract languages for "Text from image (OCR)", joined with `+`. Default `""`: see below.
 - `width`, `height` (the size is saved when the popup closes).
 
-History is in `history.toml` next to `settings.toml`; images are files in `images/` (the PNG and a tiny thumbnail), deleted with
-their entry. Text over 1 MiB and images over 8 MB (as PNG; a JPEG over 8 megapixels is not converted) are not stored, and
-a copy skipped for size is reported on stderr. Together, the text of all entries is capped at 32 MiB and the image files at
-1 GiB: beyond that the oldest entries are dropped, even before `max_items` is reached. Everything copied is stored in clear text
-(except password-manager copies): use **Clear history** in the preferences or Alt+D when that matters.
+History is in `history.toml` next to `settings.toml`; images are files in `images/` (the PNG and a tiny thumbnail), deleted with their entry. Text over 1 MiB and images over 8 MB (as PNG; a JPEG over 8 megapixels is not converted) are not stored, and a copy skipped for size is reported on stderr. Together, the text of all entries is capped at 32 MiB and the image files at 1 GiB: beyond that the oldest entries are dropped, even before `max_items` is reached. Everything copied is stored in clear text (except password-manager copies): use **Clear history** in the preferences or Alt+D when that matters.
 
 Only one instance runs. Starting `fastpaste` again opens the popup of the running one.
 
 ### Text from an image (OCR)
 
-On an image entry, the Shift+Enter (or right click) menu is **Original** plus the **OCR ·** entries (plain text, trim,
-upper case, lower case, one line), which paste the text found in the picture (it is not added to the history). Text
-entries have no OCR entries. It runs the `tesseract` command, which is optional and not bundled:
+On an image entry, the Shift+Enter (or right click) menu is **Original** plus the **OCR ·** entries (plain text, trim, upper case, lower case, one line), which paste the text found in the picture (it is not added to the history). Text entries have no OCR entries. It runs the `tesseract` command, which is optional and not bundled:
+
+Install `tesseract` itself, it is recommended that always install with English (`eng`, the fallback when the app's language has no pack), then one extra package per language you read (Debian/Ubuntu/Mint names):
 
 ```bash
-sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-por   # one tesseract-ocr-<code> package per language
-tesseract --list-langs                                               # what is installed
+sudo apt install tesseract-ocr tesseract-ocr-eng
+tesseract --list-langs # what is installed
 ```
 
-By default the languages follow the **Language** of the app: the app's language first (`pt_BR` → `por`, also `es`,
-`fr`, `de`, `it`), then English, and only the packs that are installed, so a missing pack never breaks it. For anything else
-set `ocr_lang` to the installed codes joined with `+`, for example `ocr_lang = "eng+por"`; it overrides the automatic
-choice. Tesseract tries the languages together on the same image. Suggestion: always include `eng` and add the one other
-language you read most, with the main one first. More languages make it slower and a little less accurate. A missing language
-pack or a missing `tesseract` is reported on stderr (run `FASTPASTE_DEBUG=1 fastpaste` from a terminal) and nothing is
-pasted. The popup closes at once; the text arrives a second or two later.
+| Language   | Code  | Extra command                         |
+|------------|-------|---------------------------------------|
+| English    | `eng` | `sudo apt install tesseract-ocr-eng`  |
+| Português  | `por` | `sudo apt install tesseract-ocr-por`  |
+| Español    | `spa` | `sudo apt install tesseract-ocr-spa`  |
+| Français   | `fra` | `sudo apt install tesseract-ocr-fra`  |
+| Deutsch    | `deu` | `sudo apt install tesseract-ocr-deu`  |
+| Italiano   | `ita` | `sudo apt install tesseract-ocr-ita`  |
+
+Other languages follow the same pattern (`tesseract-ocr-<code>`); other distributions name the packages alike (for example `tesseract-langpack-<code>` on Fedora).
+
+By default the languages follow the **Language** of the app: the app's language first (`pt_BR` → `por`, also `es`, `fr`, `de`, `it`), then English, and only the packs that are installed, so a missing pack never breaks it. For anything else set `ocr_lang` to the installed codes joined with `+`, for example `ocr_lang = "eng+por"`; it overrides the automatic choice. Tesseract tries the languages together on the same image. Suggestion: always include `eng` and add the one other language you read most, with the main one first. More languages make it slower and a little less accurate. FastPaste checks `tesseract` and the language packs it would use at start, after saving the preferences, and each time the popup opens while something is missing. When OCR cannot run, the **OCR ·** entries are dimmed; picking one opens the preferences, which say what is wrong (Flatpak without the permission below, `tesseract` not installed, or language packs missing, including those named in `ocr_lang`) and link to this section (only the Flatpak permission is shown as a command here). A working setup is not re-checked on every open, so if `tesseract` is removed later, the failure only appears on stderr (run `FASTPASTE_DEBUG=1 fastpaste` from a terminal) and nothing is pasted. The popup closes at once; the text arrives a second or two later.
 
 **In the Flatpak** the sandbox cannot see the host's `tesseract`, so OCR is off unless you grant it, on your own account:
 
@@ -118,17 +112,10 @@ pasted. The popup closes at once; the text arrives a second or two later.
 flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste
 ```
 
-FastPaste then runs the host's `tesseract` through `flatpak-spawn --host`. This lets it start commands outside the sandbox,
-which removes most of what the sandbox protects, so it is your choice. Undo it with
-`flatpak override --user --reset io.github.evandro777.FastPaste`. The AppImage does not need any of this.
+FastPaste then runs the host's `tesseract` through `flatpak-spawn --host`. This lets it start commands outside the sandbox, which removes most of what the sandbox protects, so it is your choice. Undo it with `flatpak override --user --reset io.github.evandro777.FastPaste`.
 
 ### Using your desktop's own shortcut (like CopyQ)
 
-Besides the built-in global shortcut, you can bind a key in your desktop to a command, the way it is usually done for
-CopyQ. The commands talk to the running instance (table above).
+Besides the built-in global shortcut, you can bind a key in your desktop to a command, the way it is usually done for CopyQ. The commands talk to the running instance (table above).
 
-On Cinnamon: **System Settings → Keyboard → Shortcuts → Custom Shortcuts → Add custom shortcut**, command
-`fastpaste --toggle` (use the full path, such as `/home/you/.local/bin/fastpaste`, or the AppImage path, if it is not
-on your `PATH`; for the Flatpak use `flatpak run io.github.evandro777.FastPaste --toggle`), then click the shortcut column
-and press **Super+V**. FastPaste must already be running (start it at login in the preferences); if it is not, the
-command starts it and the popup does not open until you run it again.
+On Cinnamon: **System Settings → Keyboard → Shortcuts → Custom Shortcuts → Add custom shortcut**, command `fastpaste --toggle` (use the full path, such as `/home/you/.local/bin/fastpaste`, or the AppImage path, if it is not on your `PATH`; for the Flatpak use `flatpak run io.github.evandro777.FastPaste --toggle`), then click the shortcut column and press **Super+V**. FastPaste must already be running (start it at login in the preferences); if it is not, the command starts it and the popup does not open until you run it again.

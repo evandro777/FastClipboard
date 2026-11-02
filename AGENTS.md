@@ -70,6 +70,12 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
   them alike). They run `tesseract stdin stdout -l <ocr_lang>` in a thread (`ocr.rs`) on the stored PNG and paste the
   (transformed) text; popup closes first, errors go to stderr. tesseract is optional and shelled out on purpose (no OCR
   crate: size and build deps).
+- OCR availability: `ocr::status` (worker thread; `App::check_ocr`, guarded by `ocr_checking`) runs `--list-langs`; a failure in Flatpak is
+  told apart (permission vs no tesseract) by `flatpak-spawn --host true`, and the wanted packs (`ocr_lang`, or `eng` in auto mode) are
+  compared with the installed ones. The result is cached in `App.ocr_status` (starts Ready, so nothing is dimmed before the first check) and
+  re-run only while it is not Ready, at start and after saving the preferences. Not Ready: the OCR entries are dimmed (`Main.ocr-ready`) and
+  `choose` hides the popup and opens the preferences, whose OCR block (`ocr-state`) holds the fix; an overlay in the popup would close on
+  focus-out while the user copies the command. Fixtures: `FASTPASTE_OCR=noperm|notesseract|missing`. The flatpak-spawn probe is untested in a real Flatpak.
 - A taken or invalid `hotkey` does not end the app: `x11::start` grabs nothing, `app::run` calls `set_hotkey` and, on
   failure, opens the preferences with `error` 1 or 2. The list rows are history indexes tagged with `History::rev`
   (`View.rev`, `resolve`): a copy while the popup is open makes a pick/remove do nothing and rebuild the list instead

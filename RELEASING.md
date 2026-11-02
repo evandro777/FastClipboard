@@ -17,7 +17,7 @@ landing page to GitHub Pages, and attaches both to the GitHub release; VirusTota
 
 5. Smoke-test the downloaded AppImage on a clean user, and the Flatpak: `flatpak update` from the previous version should offer the new one.
 
-Notes:
+## Notes
 
 - Every Pages deploy replaces the whole site (the OSTree repo is part of it), so the landing page changes only with a tag. Never add a Pages deploy from `master`: it would wipe the Flatpak repo.
 - The release is created by whichever of the AppImage and Flatpak workflows gets there first; the Flatpak one waits for Pages.
@@ -44,5 +44,5 @@ Actions and settings, that needs to be done once.
 Automatically check for virus on deploy, or delete `virustotal.yml`.
 
 - Settings → Secrets and variables → Actions → New repository secret
-- `Name: `VIRUSTOTAL_API_KEY`
+- `Name`: `VIRUSTOTAL_API_KEY`
 - `Secret`: Your Virus total api key

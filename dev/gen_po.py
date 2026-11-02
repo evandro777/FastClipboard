@@ -38,6 +38,22 @@ T = [
     ),
     (
         "Preferences",
+        "OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):",
+        ["OCR desativado: o FastPaste não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"],
+    ),
+    (
+        "Preferences",
+        "OCR needs tesseract, which is not installed. Install it, with English, then see the help page.",
+        ["O OCR precisa do tesseract, que não está instalado. Instale-o, com o inglês, e veja a página de ajuda."],
+    ),
+    (
+        "Preferences",
+        "OCR languages not installed: {}. Install them, then see the help page.",
+        ["Idiomas do OCR não instalados: {}. Instale-os e veja a página de ajuda."],
+    ),
+    ("Preferences", "Help page", ["Página de ajuda"]),
+    (
+        "Preferences",
         "Use modifiers and one letter or digit, like ctrl+alt+v.",
         ["Use modificadores e uma letra ou dígito, como ctrl+alt+v."],
     ),

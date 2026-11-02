@@ -25,24 +25,106 @@ fn tesseract() -> Command {
     }
 }
 
-/// Language packs `tesseract --list-langs` reports (empty when tesseract cannot run).
-fn installed() -> Vec<String> {
-    tesseract()
+/// Language packs `tesseract --list-langs` reports; `None` when tesseract cannot run (not found, or no permission).
+fn installed() -> Option<Vec<String>> {
+    let out = tesseract()
         .arg("--list-langs")
         .output()
-        .map(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .lines()
-                .filter(|l| !l.is_empty() && !l.contains(' '))
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
+        .ok()
+        .filter(|o| o.status.success())?;
+    Some(
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.is_empty() && !l.contains(' '))
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// Whether OCR can run, checked before the menu offers it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Status {
+    Ready,
+    /// Flatpak without `org.freedesktop.Flatpak`: the host's tesseract cannot be started.
+    NoPermission,
+    NoTesseract,
+    /// Language packs that are wanted (by the setting, or `eng` in automatic mode) but not installed.
+    MissingLang(Vec<String>),
+}
+
+impl Status {
+    /// The `ocr-state` of the preferences window (0 ready, 1 no permission, 2 no tesseract, 3 missing languages).
+    pub fn code(&self) -> i32 {
+        match self {
+            Status::Ready => 0,
+            Status::NoPermission => 1,
+            Status::NoTesseract => 2,
+            Status::MissingLang(_) => 3,
+        }
+    }
+
+    /// The missing codes, for the message.
+    pub fn missing(&self) -> String {
+        match self {
+            Status::MissingLang(l) => l.join(", "),
+            _ => String::new(),
+        }
+    }
+
+    /// What to run to fix it; empty when the help page is enough (package names depend on the distribution).
+    pub fn command(&self) -> String {
+        match self {
+            Status::NoPermission => {
+                "flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste".into()
+            }
+            _ => String::new(),
+        }
+    }
+}
+
+/// Checks tesseract and the wanted language packs (`ocr_lang` as in the settings, "" = automatic). Runs processes:
+/// call from a worker thread.
+pub fn status(ocr_lang: &str, ui_lang: &str) -> Status {
+    let Some(langs) = installed() else {
+        // Without the permission flatpak-spawn fails at once, just as it does for a missing host tesseract; a command
+        // that always exists tells the two apart.
+        let host_ok = !crate::autostart::in_flatpak()
+            || Command::new("flatpak-spawn")
+                .args(["--host", "true"])
+                .output()
+                .is_ok_and(|o| o.status.success());
+        return if host_ok {
+            Status::NoTesseract
+        } else {
+            Status::NoPermission
+        };
+    };
+    classify(&langs, ocr_lang, ui_lang)
+}
+
+fn classify(installed: &[String], ocr_lang: &str, ui_lang: &str) -> Status {
+    let missing: Vec<String> = if ocr_lang.is_empty() {
+        pick_langs(ui_lang, installed).map_or_else(|| vec!["eng".into()], |_| vec![])
+    } else if !valid_lang(ocr_lang) {
+        vec![ocr_lang.to_string()]
+    } else {
+        ocr_lang
+            .split('+')
+            .filter(|l| !installed.iter().any(|i| i == l))
+            .map(str::to_string)
+            .collect()
+    };
+    if missing.is_empty() {
+        Status::Ready
+    } else {
+        Status::MissingLang(missing)
+    }
 }
 
 /// The pack for the UI language (pt_BR -> por) first, then `eng`, keeping only packs that are installed so a missing
-/// one does not make tesseract fail. shortcut: five languages mapped by hand; use `ocr_lang` for anything else.
-fn pick_langs(ui_lang: &str, installed: &[String]) -> String {
+/// one does not make tesseract fail; `None` when neither is installed.
+/// shortcut: five languages mapped by hand; use `ocr_lang` for anything else.
+fn pick_langs(ui_lang: &str, installed: &[String]) -> Option<String> {
     let extra = match ui_lang.split(['_', '-']).next().unwrap_or("") {
         "pt" => "por",
         "es" => "spa",
@@ -55,16 +137,13 @@ fn pick_langs(ui_lang: &str, installed: &[String]) -> String {
         .into_iter()
         .filter(|l| !l.is_empty() && installed.iter().any(|i| i == l))
         .collect();
-    if picked.is_empty() {
-        "eng".into()
-    } else {
-        picked.join("+")
-    }
+    (!picked.is_empty()).then(|| picked.join("+"))
 }
 
 /// The languages for the interface language `ui_lang` (see `pick_langs`). Runs tesseract: call from a worker thread.
+/// With nothing installed it still answers `eng`, so tesseract's own error reaches stderr.
 pub fn auto_lang(ui_lang: &str) -> String {
-    pick_langs(ui_lang, &installed())
+    pick_langs(ui_lang, &installed().unwrap_or_default()).unwrap_or_else(|| "eng".into())
 }
 
 /// Blocks for a second or two: call it from a worker thread.
@@ -99,17 +178,37 @@ pub fn extract(png: &[u8], lang: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{pick_langs, valid_lang};
+    use super::{Status, classify, pick_langs, valid_lang};
 
     #[test]
     fn languages_follow_the_ui_language_when_installed() {
         let both = ["eng".to_string(), "osd".into(), "por".into()];
-        assert_eq!(pick_langs("pt_BR", &both), "por+eng");
-        assert_eq!(pick_langs("en_US", &both), "eng");
-        assert_eq!(pick_langs("", &both), "eng");
-        assert_eq!(pick_langs("de_DE", &both), "eng", "no German pack: do not ask for it");
-        assert_eq!(pick_langs("pt", &["eng".to_string()]), "eng");
-        assert_eq!(pick_langs("pt", &[]), "eng");
+        assert_eq!(pick_langs("pt_BR", &both).as_deref(), Some("por+eng"));
+        assert_eq!(pick_langs("en_US", &both).as_deref(), Some("eng"));
+        assert_eq!(pick_langs("", &both).as_deref(), Some("eng"));
+        assert_eq!(
+            pick_langs("de_DE", &both).as_deref(),
+            Some("eng"),
+            "no German pack: do not ask for it"
+        );
+        assert_eq!(pick_langs("pt", &["eng".to_string()]).as_deref(), Some("eng"));
+        assert_eq!(pick_langs("pt", &[]), None);
+    }
+
+    #[test]
+    fn status_from_the_installed_packs() {
+        let eng = ["eng".to_string(), "osd".into()];
+        assert_eq!(classify(&eng, "", "pt_BR"), Status::Ready, "auto: eng is enough");
+        assert_eq!(classify(&[], "", "en"), Status::MissingLang(vec!["eng".into()]));
+        assert_eq!(classify(&eng, "eng+por", "en"), Status::MissingLang(vec!["por".into()]));
+        assert_eq!(classify(&eng, "eng", "en"), Status::Ready);
+        assert_eq!(
+            classify(&eng, "-c x", "en").code(),
+            3,
+            "a malformed ocr_lang is reported, not run"
+        );
+        assert!(Status::NoPermission.command().starts_with("flatpak override"));
+        assert_eq!(Status::NoTesseract.command(), "");
     }
 
     #[test]
