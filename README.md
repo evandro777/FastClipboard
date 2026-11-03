@@ -45,6 +45,16 @@ The tray icon needs a StatusNotifier host (Cinnamon, KDE and GNOME with the AppI
 
 ## Install
 
+### OCR: Tesseract (optional)
+
+To extract text from an image, install `tesseract`. Example of a Debian/Ubuntu command line to install English and Portuguese:
+
+```bash
+sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-por
+```
+
+More information in [BUILD.md](BUILD.md#text-from-an-image-ocr).
+
 ### Flatpak: easy install with automatic updates
 
 Every release is also published as a Flatpak remote, so `flatpak update` (or your software centre) keeps FastPaste current. A `.flatpak` file downloaded from Releases is a one-off install: to get updates, add the remote below.

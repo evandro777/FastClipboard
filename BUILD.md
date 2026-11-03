@@ -90,7 +90,6 @@ Install `tesseract` itself, it is recommended that always install with English (
 
 ```bash
 sudo apt install tesseract-ocr tesseract-ocr-eng
-tesseract --list-langs # what is installed
 ```
 
 | Language   | Code  | Extra command                         |
@@ -104,15 +103,9 @@ tesseract --list-langs # what is installed
 
 Other languages follow the same pattern (`tesseract-ocr-<code>`); other distributions name the packages alike (for example `tesseract-langpack-<code>` on Fedora).
 
+To check the installed languages, run `tesseract --list-langs`.
+
 By default the languages follow the **Language** of the app: the app's language first (`pt_BR` → `por`, also `es`, `fr`, `de`, `it`), then English, and only the packs that are installed, so a missing pack never breaks it. For anything else set `ocr_lang` to the installed codes joined with `+`, for example `ocr_lang = "eng+por"`; it overrides the automatic choice. Tesseract tries the languages together on the same image. Suggestion: always include `eng` and add the one other language you read most, with the main one first. More languages make it slower and a little less accurate. FastPaste checks `tesseract` and the language packs it would use at start, after saving the preferences, and each time the popup opens while something is missing. When OCR cannot run, the **OCR ·** entries are dimmed; picking one opens the preferences, which say what is wrong (Flatpak without the permission below, `tesseract` not installed, or language packs missing, including those named in `ocr_lang`) and link to this section (only the Flatpak permission is shown as a command here). A working setup is not re-checked on every open, so if `tesseract` is removed later, the failure only appears on stderr (run `FASTPASTE_DEBUG=1 fastpaste` from a terminal) and nothing is pasted. The popup closes at once; the text arrives a second or two later.
-
-**In the Flatpak** the sandbox cannot see the host's `tesseract`, so OCR is off unless you grant it, on your own account:
-
-```bash
-flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste
-```
-
-FastPaste then runs the host's `tesseract` through `flatpak-spawn --host`. This lets it start commands outside the sandbox, which removes most of what the sandbox protects, so it is your choice. Undo it with `flatpak override --user --reset io.github.evandro777.FastPaste`.
 
 ### Using your desktop's own shortcut (like CopyQ)
 
