@@ -6,8 +6,9 @@ landing page to GitHub Pages, and attaches both to the GitHub release; VirusTota
 1. Pick the version (`0.2.0`). Update **both**:
     - [Cargo.toml](./Cargo.toml) → `version`
     - [io.github.evandro777.FastPaste.metainfo.xml](./packaging/io.github.evandro777.FastPaste.metainfo.xml) → add a `<release version="0.2.0" date="YYYY-MM-DD">` entry with notes (newest first)
-2. `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`
-3. Merge to `master` through a pull request, wait for CI.
+2. Run `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo audit`
+    - It will update `Cargo.lock` follows the new version (CI uses `--locked` and fails on a stale lock). Commit both.
+3. Stage the files, commit and push, and Merge to `master` through a pull request, wait for CI.
 4. Tag and push (the tag must equal the version, or `appimage.yml` and `flatpak.yml` fail):
 
     ```bash
@@ -15,7 +16,9 @@ landing page to GitHub Pages, and attaches both to the GitHub release; VirusTota
     git push origin v0.2.0
     ```
 
-5. Smoke-test the downloaded AppImage on a clean user, and the Flatpak: `flatpak update` from the previous version should offer the new one.
+5. The `Flatpak` workflow checks that the tag equals the `Cargo.toml` version and that the metainfo has the `<release>` entry, builds the bundle, and publishes `*-x86_64.flatpak` on the release page.
+    - The `AppImage` workflow adds `*-x86_64.AppImage`, and its `.zsync` (delta updates) to the same release (it waits up to 30 min for the release to exist).
+6. Smoke-test the downloaded AppImage on a clean user, and the Flatpak: `flatpak update` from the previous version should offer the new one.
 
 ## Notes
 
@@ -27,12 +30,16 @@ landing page to GitHub Pages, and attaches both to the GitHub release; VirusTota
 
 Actions and settings, that needs to be done once.
 
-### Flatpak remote (GitHub Pages)
+### Flatpak remote & GitHub Pages
 
 - Settings → Pages → Source: **GitHub Actions**.
-- Settings → Environments → `github-pages` → deployment branches and tags → add a **tag** rule `v*`. Pages creates the environment with a default-branch-only rule, so the first tag deploy is refused ("Tag v… is not allowed to deploy").
-- Create a pair signing key:
-    - `flatpak/signing-key.b64` is the **public** half (committed, users check signatures with it).
+- Settings → Environments → `github-pages` → deployment branches and tags → Add deployment branch or tag
+    - Ref type: Tag
+    - Name pattern: `v*`
+    - ℹ️ Pages creates the environment with a default-branch-only rule, so the first tag deploy is refused ("Tag v… is not allowed to deploy").
+- Create a pair signing key. Details are in [FLATPAK-SIGNING](docs/FLATPAK-SIGNING.md):
+    - In terminal: `flatpak/new-signing-key.sh`
+    - `flatpak/signing-key.b64` is the **public** half, committed, users check signatures with it.
     - CI needs the **private** half to sign each release, so store it as a secret named `FLATPAK_GPG_PRIVATE_KEY`
 - Settings → Secrets and variables → Actions → New repository secret
     - `Name`: `FLATPAK_GPG_PRIVATE_KEY`

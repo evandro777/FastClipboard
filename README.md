@@ -90,7 +90,7 @@ The AppImage does not update itself, but it has update information built in, so 
 
 ## Contributing and releases
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) to build, test and send a change, and [`RELEASING.md`](RELEASING.md) for how a release is cut. CI (format, clippy, tests, MSRV, packaging checks, and the AppImage and Flatpak builds) runs on every pull request.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) to build, test and send a change, and [`RELEASING.md`](RELEASING.md) for how a release is cut. CI (format, clippy, tests, `cargo audit` against the RustSec advisories, MSRV, packaging checks, and the AppImage and Flatpak builds) runs on every pull request.
 
 ## License
 

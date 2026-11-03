@@ -113,6 +113,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 
 - Use the Edit tool for code changes. Don't splice files with sed, awk, python or heredocs through Bash.
 - After editing Rust, run `cargo fmt && cargo clippy -- -D warnings && cargo test`. Re-read the surrounding block to confirm no braces, lines or whole components (e.g. pages) were deleted.
+- After changing dependencies (`Cargo.toml` or `Cargo.lock`), also run `cargo audit`: CI runs it and fails on known vulnerabilities (warnings such as "unmaintained" do not fail). Fix with `cargo update -p <crate>`.
 - After any change, also run `cargo build --profile fast` so the binary is built and cached for the owner's manual testing.
 
 ## Architecture decisions (inherited from FastMoji, measured there)
@@ -184,4 +185,3 @@ socket inside the sandbox first.
 ## Open items
 
 - Not done: Wayland, image formats other than PNG and JPEG, a first real Flatpak build and run. See `TODO.md`.
-
