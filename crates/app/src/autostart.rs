@@ -5,7 +5,23 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue, Value},
 };
 
+/// Flatpak with the optional `--filesystem=xdg-config/autostart` override: the host's autostart dir is mounted at
+/// `$HOME/.config/autostart`, which does not exist in the sandbox otherwise. Then we write the entry ourselves (with
+/// icon and description) instead of asking the portal.
+fn host_dir() -> Option<PathBuf> {
+    let dir = PathBuf::from(std::env::var_os("HOME")?).join(".config/autostart");
+    (in_flatpak() && dir.is_dir()).then_some(dir)
+}
+
+fn flatpak_id() -> String {
+    std::env::var("FLATPAK_ID").unwrap_or_else(|_| "io.github.evandro777.FastPaste".into())
+}
+
 fn path() -> PathBuf {
+    // Same file name as the portal's entry, so switching between the two never leaves a duplicate.
+    if let Some(dir) = host_dir() {
+        return dir.join(format!("{}.desktop", flatpak_id()));
+    }
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
@@ -44,11 +60,10 @@ fn quote(arg: &str) -> String {
     s
 }
 
-fn entry(exe: &str) -> String {
+fn entry(exec: &str) -> String {
     format!(
-        "[Desktop Entry]\nType=Application\nName=FastPaste\nComment=Clipboard history with a global shortcut\n\
-         Exec={}\nIcon=io.github.evandro777.FastPaste\nTerminal=false\n",
-        quote(exe)
+        "[Desktop Entry]\nType=Application\nName=FastPaste\nComment=Clipboard (cut & paste) history\n\
+         Exec={exec}\nIcon=io.github.evandro777.FastPaste\nTerminal=false\n"
     )
 }
 
@@ -110,17 +125,23 @@ fn portal(enabled: bool) -> Result<(), String> {
     }
 }
 
-/// shortcut: in Flatpak the marker file below only records the choice for `is_enabled`; if the user removes the entry in
+/// shortcut: through the portal the file below is only a marker for `is_enabled`; if the user removes the entry in
 /// the desktop's Startup Applications the switch stays on. Fine until the portal offers a way to query it.
 pub fn set(enabled: bool) -> io::Result<()> {
-    if in_flatpak() {
+    let direct = host_dir().is_some();
+    if in_flatpak() && !direct {
         portal(enabled).map_err(io::Error::other)?;
     }
     let p = path();
     if enabled {
-        let exe = exe().ok_or_else(|| io::Error::other("cannot find the executable"))?;
+        // /app/bin/fastpaste means nothing to the host, which must go through `flatpak run`.
+        let exec = if in_flatpak() {
+            format!("flatpak run --command=fastpaste {}", flatpak_id())
+        } else {
+            quote(&exe().ok_or_else(|| io::Error::other("cannot find the executable"))?)
+        };
         fs::create_dir_all(p.parent().unwrap_or(&p))?;
-        fs::write(&p, entry(&exe))
+        fs::write(&p, entry(&exec))
     } else {
         match fs::remove_file(&p) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
@@ -137,7 +158,7 @@ mod tests {
     fn exec_path_is_quoted_for_spaces_and_reserved_characters() {
         assert_eq!(quote("/home/a b, c/fastpaste"), "\"/home/a b, c/fastpaste\"");
         assert_eq!(quote("/x/$y\"z%"), "\"/x/\\\\$y\\\\\"z%%\"");
-        assert!(entry("/bin/fastpaste").contains("\nExec=\"/bin/fastpaste\"\n"));
+        assert!(entry(&quote("/bin/fastpaste")).contains("\nExec=\"/bin/fastpaste\"\n"));
     }
 
     #[test]

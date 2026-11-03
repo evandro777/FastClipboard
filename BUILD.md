@@ -70,7 +70,7 @@ appimage/build.sh             # needs appimagetool on PATH; writes FastPaste-<ve
 
 ## Settings and data
 
-**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the shortcut (click it and press the new keys), the number of entries kept and the language, and applies them on Save without a restart. A shortcut that another program already holds is refused. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the desktop through the Background portal), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
+**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the shortcut (click it and press the new keys), the number of entries kept and the language, and applies them on Save without a restart. A shortcut that another program already holds is refused. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the desktop through the Background portal, or writes `~/.config/autostart/io.github.evandro777.FastPaste.desktop` itself when the optional `--filesystem=xdg-config/autostart` override is set), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
 
 - `hotkey`: modifiers (`ctrl`, `alt`, `shift`, `super`) plus one letter or digit, default `"ctrl+alt+v"`.
 - `max_items`: how many entries are kept, default `500` (the window accepts 10 to 5000).

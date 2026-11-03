@@ -60,12 +60,19 @@ The remote is GPG-signed (system-wide installs refuse unsigned remotes), but the
 
 For a desktop shortcut use the command `flatpak run io.github.evandro777.FastPaste --toggle`.
 
-- **Start at login** asks the desktop through the Background portal; if you refuse, reset it with `flatpak permission-reset io.github.evandro777.FastPaste`.
+- **Start at login** asks the desktop through the Background portal; if you refuse, reset it with `flatpak permission-reset io.github.evandro777.FastPaste`. The portal writes a bare entry (the app id as its name, no icon, no description). To get a complete one, optionally let FastPaste write its own entry in your autostart folder (FastPaste uses it automatically when it is there; switch **Start at login** off and on once afterwards):
+
+    ```bash
+    flatpak override --user --filesystem=xdg-config/autostart io.github.evandro777.FastPaste
+    ```
+
+    - It only opens `~/.config/autostart`, nothing else. Undo it with `flatpak override --user --reset io.github.evandro777.FastPaste`.
+
 - **OCR** needs the host's `tesseract`, which the sandbox cannot see. It is off unless you grant it yourself, on your own account (until then the OCR menu entries are dimmed, and the preferences show this command):
 
-```bash
-flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste
-```
+    ```bash
+    flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste
+    ```
 
 - FastPaste runs the host's `tesseract` through `flatpak-spawn --host`. This lets it start commands outside the sandbox, which removes most of what the sandbox protects, so it is your choice. Undo it with `flatpak override --user --reset io.github.evandro777.FastPaste`.
 

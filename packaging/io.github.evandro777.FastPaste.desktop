@@ -2,7 +2,7 @@
 Name=FastPaste
 Type=Application
 GenericName=Clipboard Manager
-Comment=Clipboard history with a global shortcut
+Comment=Clipboard (cut & paste) history
 Exec=fastpaste
 Categories=Utility;
 Icon=io.github.evandro777.FastPaste
