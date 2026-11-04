@@ -55,7 +55,19 @@ sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-por
 
 More information in [BUILD.md](BUILD.md#text-from-an-image-ocr).
 
-### Flatpak: easy install with automatic updates
+### Flatpak
+
+#### Install from file (no updates)
+
+Download `FastPaste-<version>-x86_64.flatpak` from [Releases](https://github.com/evandro777/FastPaste/releases), then execute:
+
+```bash
+flatpak install --user ~/Downloads/FastPaste-<version>-x86_64.flatpak
+```
+
+Installing from file, will not auto update.
+
+#### Install with automatic updates
 
 Every release is also published as a Flatpak remote, so `flatpak update` (or your software centre) keeps FastPaste current. A `.flatpak` file downloaded from Releases is a one-off install: to get updates, add the remote below.
 
@@ -90,9 +102,18 @@ For a desktop shortcut use the command `flatpak run io.github.evandro777.FastPas
 
 ### AppImage (with delta updates)
 
-Download `FastPaste-<version>-x86_64.AppImage` from [Releases](https://github.com/evandro777/FastPaste/releases), then `chmod +x` it and run it. It uses the fontconfig, xkbcommon and X11 libraries already on your system. For a keyboard shortcut use the command `/path/to/FastPaste-<version>-x86_64.AppImage --toggle` (it must point at the file, so keep it in a fixed place).
+Download `FastPaste-<version>-x86_64.AppImage` from [Releases](https://github.com/evandro777/FastPaste/releases), then execute:
 
-The AppImage does not update itself, but it has update information built in, so a tool such as [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) (`appimageupdatetool FastPaste-*.AppImage`), Gear Lever or AppManager downloads only the changed parts of the next release.
+```bash
+sudo chmod +x ~/Downloads/FastPaste-<version>-x86_64.AppImage
+~/Downloads/FastPaste-<version>-x86_64.AppImage
+```
+
+It uses the fontconfig, xkbcommon and X11 libraries already on your system.
+
+For a keyboard shortcut use the command `/path/to/FastPaste-<version>-x86_64.AppImage --toggle` (it must point at the file, so keep it in a fixed place).
+
+The AppImage does not update itself, but it has update information built in, so a tool such as [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) (`appimageupdatetool FastPaste-*.AppImage`), [Gear Lever](https://github.com/mijorus/gearlever) or [AppManager](https://github.com/kem-a/AppManager) downloads only the changed parts of the next release.
 
 ## Build & Configurations
 
