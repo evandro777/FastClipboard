@@ -63,3 +63,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - run: cargo check --locked
+
+  e2e-copy:
+    name: Copy end to end (private Xvfb)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev \
+            xvfb x11-utils xclip imagemagick
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo build --locked --profile fast
+      - run: dev/e2e-copy.sh

@@ -8,8 +8,8 @@ msgid "Search…"
 msgstr "Pesquisar…"
 
 msgctxt "Main"
-msgid "Nothing copied yet"
-msgstr "Nada copiado ainda"
+msgid "Copy some text or an image and it shows up here."
+msgstr "O que você copiar aparece aqui."
 
 msgctxt "Main"
 msgid "No matches"

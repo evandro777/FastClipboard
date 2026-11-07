@@ -989,7 +989,6 @@ dependencies = [
  "slint-build",
  "x11rb",
  "zbus",
- "zune-jpeg",
 ]
 
 [[package]]

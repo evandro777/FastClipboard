@@ -14,6 +14,17 @@ pub const MIN_SIZE: (u32, u32) = (400, 300);
 /// Upper bound for a hand-edited size; a huge value would fail at window creation.
 pub const MAX_SIZE: u32 = 8192;
 
+/// Range of `max_items`, for the preferences and for a hand-edited file. Beyond it the whole-file history rewrite is slow.
+pub const MAX_ITEMS_RANGE: std::ops::RangeInclusive<usize> = 10..=5000;
+
+/// `<file>.bad.<unix time>`: where an unreadable file is kept, so a second one never overwrites the first backup.
+pub(crate) fn backup_path(path: &Path) -> PathBuf {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    path.with_extension(format!("toml.bad.{secs}"))
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)] // older files keep loading when a field is added
 pub struct Settings {
@@ -21,7 +32,7 @@ pub struct Settings {
     pub language: String,
     pub width: u32,
     pub height: u32,
-    /// Oldest unpinned entries beyond this are dropped.
+    /// Oldest entries beyond this are dropped.
     pub max_items: usize,
     /// Global shortcut that opens the popup: modifiers (ctrl, alt, shift, super) plus one letter or digit.
     pub hotkey: String,
@@ -84,7 +95,7 @@ impl Settings {
         let mut s = match fs::read_to_string(path()) {
             Ok(text) => parse(&text).unwrap_or_else(|e| {
                 // The file is hand-edited; the next save() must not overwrite what the user wrote.
-                let bad = path().with_extension("toml.bad");
+                let bad = backup_path(&path());
                 eprintln!(
                     "settings.toml is invalid ({e}); kept as {}, using defaults",
                     bad.display()
@@ -101,7 +112,7 @@ impl Settings {
     fn normalize(&mut self) {
         self.width = self.width.clamp(MIN_SIZE.0, MAX_SIZE);
         self.height = self.height.clamp(MIN_SIZE.1, MAX_SIZE);
-        self.max_items = self.max_items.max(1);
+        self.max_items = self.max_items.clamp(*MAX_ITEMS_RANGE.start(), *MAX_ITEMS_RANGE.end());
     }
 
     /// Atomic write so a crash can never leave a half-written file. Failures are reported on stderr;
@@ -160,6 +171,17 @@ mod tests {
     #[test]
     fn invalid_file_is_an_error_not_defaults() {
         assert!(parse("width = \"wide\"").is_err());
+    }
+
+    #[test]
+    fn max_items_is_clamped_and_backups_do_not_collide() {
+        for (raw, want) in [(0, 10), (100_000_000, 5000), (200, 200)] {
+            let mut s: Settings = toml::from_str(&format!("max_items = {raw}")).unwrap();
+            s.normalize();
+            assert_eq!(s.max_items, want);
+        }
+        let name = backup_path(Path::new("/x/history.toml"));
+        assert!(name.to_string_lossy().starts_with("/x/history.toml.bad."));
     }
 
     #[test]

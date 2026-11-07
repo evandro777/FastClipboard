@@ -27,7 +27,8 @@ jobs:
     name: Scan release assets
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+        && startsWith(github.event.workflow_run.head_branch, 'v'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

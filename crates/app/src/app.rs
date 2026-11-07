@@ -2,6 +2,7 @@
 //! tested on Cinnamon (Muffin); see its AGENTS.md "Hard-won gotchas" before changing the timings.
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     rc::Rc,
     sync::{
         Arc, Mutex,
@@ -12,7 +13,7 @@ use std::{
 
 use fastpaste_core::{
     history::History,
-    settings::{MIN_SIZE, Settings},
+    settings::{MAX_ITEMS_RANGE, MIN_SIZE, Settings},
     transform::Transform,
 };
 use slint::{
@@ -34,8 +35,6 @@ use crate::{
 
 /// Language codes behind the preferences' language list (`languages` in main.slint, same order); "" = the system's.
 const LANGUAGES: [&str; 3] = ["", "en", "pt_BR"];
-/// Range of `max_items` accepted by the preferences. Beyond it the whole-file history rewrite gets slow.
-const MAX_ITEMS_RANGE: std::ops::RangeInclusive<usize> = 10..=5000;
 
 /// Row heights in logical pixels (rows are laid out by `Row.height` in main.slint; image rows hold a 64 px thumbnail).
 const TEXT_ROW: f32 = 38.0;
@@ -100,6 +99,9 @@ struct App {
     ocr_status: RefCell<ocr::Status>,
     /// A check is running; fast hotkey presses must not stack them.
     ocr_checking: Arc<AtomicBool>,
+    /// Thumbnails of the rows last listed, so "load more" does not decode the earlier ones again. Rebuilt on every
+    /// refresh from the rows shown, so it never holds an image that left the list.
+    thumbs: RefCell<HashMap<String, slint::Image>>,
 }
 
 thread_local! {
@@ -156,11 +158,8 @@ pub fn run(ui: Main, settings: Settings) {
         let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
         std::thread::spawn(move || {
             for data in rx {
-                // Converted (JPEG), validated and thumbnailed before taking the lock: decoding takes a moment.
-                let Some(png) = images::to_png(data) else {
-                    eprintln!("image skipped: not a PNG or a JPEG of at most 8 megapixels");
-                    continue;
-                };
+                // Validated and thumbnailed before taking the lock: decoding takes a moment.
+                let png = data;
                 let Some(size) = images::size(&png) else {
                     eprintln!("image skipped: not a valid PNG");
                     continue;
@@ -196,7 +195,7 @@ pub fn run(ui: Main, settings: Settings) {
         let time = hotkey_time.clone();
         move |t| {
             time.store(t, Ordering::SeqCst);
-            post(App::toggle);
+            post(App::hotkey_pressed);
         }
     };
     let hotkey_time_cmd = hotkey_time.clone();
@@ -252,6 +251,7 @@ pub fn run(ui: Main, settings: Settings) {
         paste_timer: Timer::default(),
         ocr_status: RefCell::new(ocr::Status::Ready),
         ocr_checking: Arc::new(AtomicBool::new(false)),
+        thumbs: RefCell::default(),
     });
     APP.with(|a| *a.borrow_mut() = Some(app.clone()));
     app.check_ocr();
@@ -351,6 +351,19 @@ fn tray_labels(ui: &Main) -> Labels {
 impl App {
     fn ui(&self) -> Main {
         self.ui.upgrade().expect("window is gone")
+    }
+
+    /// The global shortcut only opens the popup or brings it back to the front; it never closes it (Esc, a click
+    /// elsewhere or a paste do). `--toggle` still toggles.
+    fn hotkey_pressed(&self) {
+        let time = self.hotkey_time.load(Ordering::SeqCst);
+        if self.ui().window().is_visible() && !self.prefs.borrow().as_ref().is_some_and(|w| w.get_recording_shortcut())
+        {
+            self.activate(time);
+            self.ui().invoke_focus_search();
+        } else {
+            self.toggle();
+        }
     }
 
     fn toggle(&self) {
@@ -543,6 +556,10 @@ impl App {
         if self.shown_at.get().is_some_and(|t| t.elapsed() < FOCUS_GRACE) {
             // The WM sometimes bounces focus right after mapping; ask again instead of hiding.
             self.activate(self.hotkey_time.load(Ordering::SeqCst));
+        } else if self.window_id().is_some_and(|id| self.x.input_focus_inside(id)) {
+            // Pressing or releasing a grabbed key sends the window a focus-out (mode Grab/Ungrab) although the X
+            // input focus never moved; only the server can tell that from a real focus change.
+            debug(|| "focus-out without a focus change (key grab): ignored".into());
         } else if self.pointer_on_frame() {
             // A click on the title bar or a border (to move or resize) takes the focus to the WM's frame.
             debug(|| "focus-out ignored: the pointer is on the window frame".into());
@@ -575,13 +592,22 @@ impl App {
         let ui = self.ui();
         let tr = ui.global::<Tr>();
         let mut top = 0.0;
+        let mut old_thumbs = self.thumbs.take();
+        let mut thumbs = HashMap::new();
         let rows: Vec<Row> = entries
             .into_iter()
             .map(|(text, image)| {
                 let mut row = match image {
                     // The label and the tiny stored thumbnail: a full screenshot is never decoded for the list.
                     Some(im) => {
-                        let thumb = if im.thumb { images::load_thumbnail(&im.id) } else { None };
+                        let thumb = if im.thumb {
+                            old_thumbs.remove(&im.id).or_else(|| images::load_thumbnail(&im.id))
+                        } else {
+                            None
+                        };
+                        if let Some(t) = &thumb {
+                            thumbs.insert(im.id.clone(), t.clone());
+                        }
                         Row {
                             text: tr.invoke_image(im.width as i32, im.height as i32, im.bytes.div_ceil(1024) as i32),
                             has_thumb: thumb.is_some(),
@@ -601,6 +627,7 @@ impl App {
                 row
             })
             .collect();
+        *self.thumbs.borrow_mut() = thumbs;
         ui.set_hidden(hidden as i32);
         ui.set_rows(ModelRc::new(VecModel::from(rows)));
     }
@@ -847,6 +874,14 @@ impl App {
             crate::apply_language(&s);
         }
         self.max_items.store(max_items, Ordering::SeqCst);
+        {
+            let mut h = self.history.lock().unwrap();
+            h.set_max(max_items);
+            h.save();
+        }
+        if self.ui().window().is_visible() {
+            self.refresh();
+        }
         if let Some(tray) = self.tray.borrow().as_ref() {
             tray::set_labels(tray, tray_labels(&self.ui()));
         }

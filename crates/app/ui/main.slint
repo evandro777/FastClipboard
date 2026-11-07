@@ -146,7 +146,8 @@ export component Main inherits Window {
                 // A plain Button keeps the native hover/pressed look; the icon is drawn on top (a Path takes no
                 // input, so clicks reach the button) and follows the theme.
                 Rectangle {
-                    width: self.height;
+                    // Fixed (the search field's height): `self.height` made a binding loop with the wrapping empty text.
+                    width: 32px;
                     Button {
                         width: 100%;
                         height: 100%;
@@ -167,16 +168,20 @@ export component Main inherits Window {
             }
 
             if root.rows.length == 0: Text {
-                text: root.query == "" ? @tr("Nothing copied yet") : @tr("No matches");
+                text: root.query == "" ? @tr("Copy some text or an image and it shows up here.") : @tr("No matches");
                 color: Palette.foreground.with-alpha(0.6);
                 horizontal-alignment: center;
                 vertical-alignment: center;
+                wrap: word-wrap;
                 vertical-stretch: 1;
             }
 
             list := ListView {
                 visible: root.rows.length > 0;
-                vertical-stretch: 1;
+                // The hidden list must not take the space the empty-state text is centred in.
+                vertical-stretch: root.rows.length > 0 ? 1 : 0;
+                min-height: root.rows.length > 0 ? 40px : 0px;
+                max-height: root.rows.length > 0 ? 100000px : 0px;
                 // Like an endless web page: the next page loads when the scroll gets near the end (it also fills a
                 // window taller than the rows loaded so far).
                 changed content-y => { root.maybe-more(); }
@@ -184,26 +189,43 @@ export component Main inherits Window {
                 changed visible-height => { root.maybe-more(); }
                 for row[i] in root.rows: Rectangle {
                     height: row.height;
-                    background: i == root.current ? Palette.selection-background
-                        : row-touch.has-hover ? Palette.foreground.with-alpha(0.12) : transparent;
+                    border-radius: 6px;
+                    // Three levels: hover (faint), selected (accent tint), and the solid bar below.
+                    background: i == root.current ? Palette.accent-background.with-alpha(0.22)
+                        : row-touch.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
+                    // The accent bar is what marks the selected row; the rest of the UI stays neutral.
+                    if i == root.current: Rectangle {
+                        x: 0px;
+                        width: 3px;
+                        height: parent.height * 0.6;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 1.5px;
+                        background: Palette.accent-background;
+                    }
                     HorizontalLayout {
-                        padding-left: 6px;
-                        padding-right: 6px;
+                        padding-left: 10px;
+                        padding-right: 8px;
                         spacing: 8px;
                         if row.has-thumb: Rectangle {
                             width: 129px;
                             // Stored at 192x96, so it stays sharp on HiDPI screens; `contain` keeps the proportion.
-                            Image {
-                                source: row.thumb;
+                            Rectangle {
                                 width: 100%;
                                 height: 64px;
                                 y: (parent.height - self.height) / 2;
-                                image-fit: contain;
+                                border-radius: 4px;
+                                clip: true;
+                                Image {
+                                    source: row.thumb;
+                                    width: 100%;
+                                    height: 100%;
+                                    image-fit: contain;
+                                }
                             }
                         }
                         Text {
                             text: row.text;
-                            color: i == root.current ? Palette.selection-foreground : Palette.foreground;
+                            color: Palette.foreground;
                             overflow: elide;
                             vertical-alignment: center;
                         }
@@ -233,26 +255,39 @@ export component Main inherits Window {
         if root.menu-open: Rectangle {
             width: 240px;
             x: (parent.width - self.width) / 2;
-            y: 50px;
-            height: root.options.length * 30px + 2px;
-            background: Palette.background;
+            // Just under the row it acts on; above it when it does not fit below; always inside the window.
+            property <length> row-top: list.y + root.rows[root.current].top + list.content-y;
+            property <length> below: self.row-top + root.rows[root.current].height + 2px;
+            y: max(4px, min(parent.height - self.height - 4px,
+                self.below + self.height + 4px <= parent.height ? self.below : self.row-top - self.height - 2px));
+            height: root.options.length * 30px + 10px;
+            background: Palette.alternate-background;
+            border-radius: 8px;
             border-width: 1px;
-            border-color: Palette.foreground.with-alpha(0.4);
+            border-color: Palette.foreground.with-alpha(0.25);
+            drop-shadow-blur: 12px;
+            drop-shadow-color: #0006;
+            drop-shadow-offset-y: 3px;
             VerticalLayout {
-                padding: 1px;
+                padding: 4px;
                 for option[i] in root.options: Rectangle {
                     property <bool> unavailable: i >= 1 && root.rows[root.current].is-image && !root.ocr-ready;
                     height: 30px;
-                    background: i == root.menu-index ? Palette.selection-background
-                        : option-touch.has-hover ? Palette.foreground.with-alpha(0.12) : transparent;
+                    border-radius: 4px;
+                    // Hover moves the highlight, so only one item is ever lit.
+                    background: i == root.menu-index ? Palette.accent-background.with-alpha(0.22) : transparent;
                     Text {
                         x: 10px;
                         text: option;
-                        color: (i == root.menu-index ? Palette.selection-foreground : Palette.foreground)
-                            .with-alpha(unavailable ? 0.45 : 1.0);
+                        color: Palette.foreground.with-alpha(unavailable ? 0.45 : 1.0);
                         vertical-alignment: center;
                     }
                     option-touch := TouchArea {
+                        changed has-hover => {
+                            if (self.has-hover) {
+                                root.menu-index = i;
+                            }
+                        }
                         clicked => {
                             root.menu-open = false;
                             root.choose(root.current, i);
@@ -304,6 +339,12 @@ export component Preferences inherits Window {
     FocusScope {
         capture-key-pressed(e) => {
             if (!root.recording-shortcut) {
+                // Escape closes whichever overlay is open.
+                if (e.text == Key.Escape && (root.about-open || root.confirm-clear)) {
+                    root.about-open = false;
+                    root.confirm-clear = false;
+                    return accept;
+                }
                 return reject;
             }
             root.held = [e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta];
@@ -328,21 +369,41 @@ export component Preferences inherits Window {
 
         VerticalLayout {
             padding: 16px;
-            spacing: 10px;
-            alignment: start;
-            Text { text: @tr("Shortcut"); }
-            Button {
-                text: root.recording-shortcut ? root.held-text(root.held[0], root.held[1], root.held[2], root.held[3]) : root.hotkey;
-                clicked => { root.held = [false, false, false, false]; root.recording-shortcut = true; }
+            spacing: 16px;
+            // Label and field are one group (4px apart); groups are 16px apart.
+            VerticalLayout {
+                spacing: 4px;
+                Text { text: @tr("Shortcut"); }
+                Button {
+                    text: root.recording-shortcut ? root.held-text(root.held[0], root.held[1], root.held[2], root.held[3]) : root.hotkey;
+                    clicked => { root.held = [false, false, false, false]; root.recording-shortcut = true; }
+                }
+                if root.error == 1 || root.error == 2: Text {
+                    wrap: word-wrap;
+                    color: #e5484d;
+                    text: root.error == 1 ? @tr("Use modifiers and one letter or digit, like ctrl+alt+v.")
+                        : @tr("That shortcut is already in use by another program.");
+                }
             }
-            Text { text: @tr("Entries kept"); }
-            LineEdit { text <=> root.max-items; placeholder-text: "500"; }
-            Text { text: @tr("Language"); }
-            ComboBox { model: root.languages; current-index <=> root.language; }
-            Text {
-                text: @tr("Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed.");
-                wrap: word-wrap;
-                color: Palette.foreground.with-alpha(0.6);
+            VerticalLayout {
+                spacing: 4px;
+                Text { text: @tr("Entries kept"); }
+                LineEdit { text <=> root.max-items; placeholder-text: "500"; input-type: InputType.number; }
+                if root.error == 3: Text {
+                    wrap: word-wrap;
+                    color: #e5484d;
+                    text: @tr("Entries kept must be a number from 10 to 5000.");
+                }
+            }
+            VerticalLayout {
+                spacing: 4px;
+                Text { text: @tr("Language"); }
+                ComboBox { model: root.languages; current-index <=> root.language; }
+                Text {
+                    text: @tr("Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed.");
+                    wrap: word-wrap;
+                    color: Palette.foreground.with-alpha(0.6);
+                }
             }
             if root.ocr-state != 0: VerticalLayout {
                 spacing: 6px;
@@ -381,13 +442,9 @@ export component Preferences inherits Window {
                 Text { text: @tr("Clipboard history"); vertical-alignment: center; horizontal-stretch: 1; }
                 Button { text: @tr("Clear history…"); clicked => { root.confirm-clear = true; } }
             }
-            if root.error != 0: Text {
-                wrap: word-wrap;
-                color: #e5484d;
-                text: root.error == 1 ? @tr("Use modifiers and one letter or digit, like ctrl+alt+v.")
-                    : root.error == 2 ? @tr("That shortcut is already in use by another program.")
-                    : @tr("Entries kept must be a number from 10 to 5000.");
-            }
+            // Pushes the buttons to the bottom edge, like a dialog.
+            Rectangle { vertical-stretch: 1; }
+            Rectangle { height: 1px; background: Palette.border; }
             HorizontalLayout {
                 spacing: 8px;
                 Button { text: @tr("Quit FastPaste"); clicked => { root.quit(); } }
@@ -469,7 +526,7 @@ export component Preferences inherits Window {
                 Text {
                     text: "github.com/evandro777/FastPaste";
                     horizontal-alignment: center;
-                    color: #3584e4;
+                    color: Palette.accent-background;
                     TouchArea {
                         mouse-cursor: pointer;
                         clicked => { root.open-url("https://github.com/evandro777/FastPaste"); }

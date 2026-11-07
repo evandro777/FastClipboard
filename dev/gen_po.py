@@ -8,7 +8,7 @@ LANGS = ["pt_BR"]
 # (context, msgid, [translation per LANGS])
 T = [
     ("Main", "Search…", ["Pesquisar…"]),
-    ("Main", "Nothing copied yet", ["Nada copiado ainda"]),
+    ("Main", "Copy some text or an image and it shows up here.", ["O que você copiar aparece aqui."]),
     ("Main", "No matches", ["Nenhum resultado"]),
     (
         "Main",

@@ -41,13 +41,15 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
 - Images: `image/png` without `UTF8_STRING` in TARGETS is an image copy (text wins when both are offered). The PNG is
   stored as `images/<hash>.png` plus a ~192x96 `<hash>.thumb.png` made once at copy time (`images.rs`, `png` crate,
   area-average downscale); the TOML only holds an `[items.image]` pointer, and the files are deleted with the entry
-  (`History::truncate/remove/clear`). The list loads only the tiny thumbnails, never a full image; images over 20 Mpix
-  get no thumbnail, over 8 MB are not stored. Big images, and big text/HTML, arrive by INCR (chunked, driven by
+  (`History::truncate/remove/clear`). The list loads only the tiny thumbnails, never a full image; images over 40 Mpix
+  (a time limit) or interlaced get no thumbnail, over 8 MB are not stored. The thumbnail is streamed row by row into
+  the output (`images::thumbnail`): decoding a 4K/5K screenshot whole peaked at 80-130 MB and glibc kept part of it
+  (its mmap threshold rises after the first free); now the peak is about 15 MB. Do not go back to `decode_rgba` there. Big images, and big text/HTML, arrive by INCR (chunked, driven by
   `PropertyNotify` on our window, `Stage::Incr`, `Flavor` says what it carries): xclip uses it from about 256 KB, so
   test with a >1 MB PNG and a 300 KB text. Image decoding runs on one worker thread (`on_image` only sends the bytes),
   so the X11 thread keeps serving the clipboard and the hotkey. Serving a pick sends the PNG in
-  one property (x11rb uses BIG-REQUESTS), no INCR on the sending side. Everything stored is PNG: an `image/jpeg`-only copy is decoded (`zune-jpeg`) and re-encoded by `images::to_png`
-  (sniffed by magic number, capped at 20 Mpix); PNG is preferred when both are offered. `History::load` deletes
+  one property (x11rb uses BIG-REQUESTS), no INCR on the sending side. Only PNG is stored: an `image/jpeg`-only copy is ignored (JPEG support was removed: browsers and screenshot tools
+  offer PNG, and a JPEG photo re-encoded as PNG usually exceeds the 8 MB cap). `History::load` deletes
   files in `images/` that no entry references, but only when `history.toml` was read and parsed (never after a missing or
   corrupt file).
 - Transforms (`core/transform.rs`) are picked from the Shift+Enter menu (`choose(row, option)`: 0 original, 1 plain,
@@ -122,7 +124,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 - No async runtime. Scans/work in threads, results handed to the UI thread with `slint::invoke_from_event_loop`.
 - Never hold a `RefCell` borrow while calling something that makes Slint re-read a model.
 - Keep dependencies few and light.
-- Slint notes: a `VerticalLayout` inside a `ScrollView` needs `alignment: start`, or a short list spreads its rows over the window; read-only `TextInput` (one per block) makes text selectable; use `content-y` (not `viewport-y`); a callback named `close` shadows a builtin (use `dismiss`); `FocusScope.capture-key-pressed` intercepts keys before `LineEdit`.
+- Slint notes: a `VerticalLayout` inside a `ScrollView` needs `alignment: start`, or a short list spreads its rows over the window; read-only `TextInput` (one per block) makes text selectable; use `content-y` (not `viewport-y`); a callback named `close` shadows a builtin (use `dismiss`); `FocusScope.capture-key-pressed` intercepts keys before `LineEdit`; a `width: self.height` sibling plus a `word-wrap` Text in the same layout makes a binding loop (use a fixed width); `Palette.selection-background` is the accent colour, so a "quiet" selection is `accent-background.with-alpha(..)`; the software renderer ignores `drop-shadow-*`.
 
 ## Translations
 
@@ -180,8 +182,8 @@ socket inside the sandbox first.
   binary export); the private half is the secret `FLATPAK_GPG_PRIVATE_KEY`. RELEASING.md lists the one-time setup.
 - **Flathub policy:** manifests must NOT contain AI-generated content and AI must not open the submission PR. Do not write a Flathub manifest
   or submission text for the owner; `docs/FLATHUB.md` explains the process.
-- The build vendors crates (`cargo vendor`), so `flatpak/vendor` must not be in the manifest's `skip:`. Keep build dirs out of the repo (Dropbox).
+- The build vendors crates (`cargo vendor`), so `flatpak/vendor` must not be in the manifest's `skip:`.
 
 ## Open items
 
-- Not done: Wayland, image formats other than PNG and JPEG, a first real Flatpak build and run. See `TODO.md`.
+- Not done: Wayland, image formats other than PNG, a first real Flatpak build and run. See `TODO.md`.

@@ -1,14 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#3584e4"/>
-  <!-- clipboard board -->
-  <rect x="28" y="24" width="72" height="88" rx="10" fill="#ffffff"/>
-  <!-- clip -->
-  <rect x="46" y="14" width="36" height="20" rx="7" fill="#1a5fb4"/>
-  <rect x="53" y="19" width="22" height="6" rx="3" fill="#ffffff"/>
-  <!-- history lines -->
-  <rect x="40" y="46" width="48" height="8" rx="4" fill="#99c1f1"/>
-  <rect x="40" y="62" width="48" height="8" rx="4" fill="#99c1f1"/>
-  <rect x="40" y="78" width="30" height="8" rx="4" fill="#99c1f1"/>
-  <!-- speed bolt -->
-  <path d="M84 70 L66 98 H78 L72 118 L96 88 H83 L90 70 Z" fill="#f5c211" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
+  <!-- Fast family icon: flat tile with a stepped top-right corner, white symbol leaning 8 degrees. Solid colours only (ImageMagick makes the PNG). -->
+  <path d="M26 0H64V14H92V28H128V102A26 26 0 0 1 102 128H26A26 26 0 0 1 0 102V26A26 26 0 0 1 26 0Z" fill="#2f6fdb"/>
+  <g transform="translate(62 68) skewX(-8) translate(-62 -68)" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="36" y="42" width="52" height="58" rx="10"/>
+    <rect x="50" y="34" width="24" height="14" rx="5" fill="#ffffff" stroke="none"/>
+    <path d="M52 66H72M52 82H62"/>
+  </g>
 </svg>

@@ -78,7 +78,7 @@ appimage/build.sh             # needs appimagetool on PATH; writes FastPaste-<ve
 - `ocr_lang`: tesseract languages for "Text from image (OCR)", joined with `+`. Default `""`: see below.
 - `width`, `height` (the size is saved when the popup closes).
 
-History is in `history.toml` next to `settings.toml`; images are files in `images/` (the PNG and a tiny thumbnail), deleted with their entry. Text over 1 MiB and images over 8 MB (as PNG; a JPEG over 8 megapixels is not converted) are not stored, and a copy skipped for size is reported on stderr. Together, the text of all entries is capped at 32 MiB and the image files at 1 GiB: beyond that the oldest entries are dropped, even before `max_items` is reached. Everything copied is stored in clear text (except password-manager copies): use **Clear history** in the preferences or Alt+D when that matters.
+History is in `history.toml` next to `settings.toml`; images are files in `images/` (the PNG and a tiny thumbnail), deleted with their entry. Text over 1 MiB and images over 8 MB (PNG only) are not stored, and a copy skipped for size is reported on stderr. Together, the text of all entries is capped at 4 MiB and the image files at 1 GiB: beyond that the oldest entries are dropped, even before `max_items` is reached. Everything copied is stored in clear text (except password-manager copies): use **Clear history** in the preferences or Alt+D when that matters.
 
 Only one instance runs. Starting `fastpaste` again opens the popup of the running one.
 

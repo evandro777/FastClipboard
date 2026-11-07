@@ -39,7 +39,6 @@ struct Atoms {
     utf8: Atom,
     html: Atom,
     png: Atom,
-    jpeg: Atom,
     targets: Atom,
     incr: Atom,
     /// Password managers add this target to what they put on the clipboard.
@@ -181,9 +180,33 @@ fn find_keycodes(conn: &impl Connection, keysyms: &[u32]) -> Result<Vec<Option<u
         .collect())
 }
 
-/// True when a press at `time` (server ms, wraps) follows the previous one so closely that it is auto-repeat.
-fn is_repeat(last: Option<u32>, time: u32) -> bool {
-    last.is_some_and(|t| time.wrapping_sub(t) < REPEAT_MS)
+/// True when a press at `time` (server ms, wraps) is auto-repeat. Fallback when detectable auto-repeat is
+/// unavailable: X then sends each repeat as a release and a press with the same timestamp (the first one only after
+/// the ~500 ms repeat delay), so that is the main test; pressing within `REPEAT_MS` of the last press is the backup.
+fn is_repeat(last_press: Option<u32>, last_release: Option<u32>, time: u32) -> bool {
+    last_release == Some(time) || last_press.is_some_and(|t| time.wrapping_sub(t) < REPEAT_MS)
+}
+
+/// Ask the server to stop sending release+press pairs while a key is held (XKB "detectable auto-repeat").
+/// Applies to this connection only. False when XKB is unavailable, and `is_repeat` is used instead.
+fn detectable_auto_repeat(conn: &RustConnection) -> bool {
+    use x11rb::protocol::xkb::{ConnectionExt as _, ID, PerClientFlag};
+    let flag = PerClientFlag::DETECTABLE_AUTO_REPEAT;
+    let enable = || -> Result<bool> {
+        conn.xkb_use_extension(1, 0)?.reply()?;
+        let reply = conn
+            .xkb_per_client_flags(
+                ID::USE_CORE_KBD.into(),
+                flag,
+                flag,
+                0u32.into(),
+                0u32.into(),
+                0u32.into(),
+            )?
+            .reply()?;
+        Ok(reply.value & flag != PerClientFlag::from(0u32))
+    };
+    enable().unwrap_or(false)
 }
 
 /// Terminals that paste with Ctrl+Shift+V (plain Ctrl+V reaches the shell as a control character).
@@ -290,31 +313,32 @@ impl Incr {
 enum Plan {
     /// Never recorded (a password manager).
     Skip,
-    Image(Atom),
+    Image,
     Text,
 }
 
 /// A copy from a password manager is never recorded. An owner that does not answer TARGETS (empty list) is treated as
 /// ordinary text. Text wins when both are offered (a spreadsheet cell comes with a picture of itself); a PNG without
-/// text is an image copy (a screenshot, "Copy image" in a browser). PNG is preferred; a JPEG is converted to PNG by
-/// `images::to_png`.
+/// text is an image copy (a screenshot, "Copy image" in a browser). Only PNG is stored; a JPEG-only copy is ignored.
 fn plan(targets: &[Atom], a: &Atoms) -> Plan {
     if targets.contains(&a.secret_hint) {
         return Plan::Skip;
     }
-    let image = [a.png, a.jpeg].into_iter().find(|t| targets.contains(t));
-    match image.filter(|_| !targets.contains(&a.utf8)) {
-        Some(image) => Plan::Image(image),
-        None => Plan::Text,
+    if targets.contains(&a.png) && !targets.contains(&a.utf8) {
+        Plan::Image
+    } else {
+        Plan::Text
     }
 }
 
 struct Daemon {
     h: Handle,
     last_press: Option<u32>,
+    last_release: Option<u32>,
+    /// The hotkey is physically held (only tracked with detectable auto-repeat).
+    down: bool,
+    detectable: bool,
     stage: Stage,
-    /// The image type requested in `Stage::Image` (PNG, or JPEG when that is all the owner offers).
-    image_target: Atom,
     on_copy: Box<dyn Fn(String, Option<String>) + Send>,
     on_image: Box<dyn Fn(Vec<u8>) + Send>,
     on_hotkey: Box<dyn Fn(u32) + Send>,
@@ -322,7 +346,7 @@ struct Daemon {
 
 /// Fails when the display is unreachable. No shortcut is grabbed yet: the caller does that with `set_hotkey`, so a
 /// taken shortcut is an error to show, not the end of the app.
-/// `on_hotkey` gets the event time, which the focus hand-over needs. `on_image` gets the bytes of an image copy (PNG or JPEG).
+/// `on_hotkey` gets the event time, which the focus hand-over needs. `on_image` gets the bytes of an image copy (PNG).
 pub fn start(
     on_copy: impl Fn(String, Option<String>) + Send + 'static,
     on_image: impl Fn(Vec<u8>) + Send + 'static,
@@ -352,7 +376,6 @@ pub fn start(
             utf8: atom(b"UTF8_STRING")?,
             html: atom(b"text/html")?,
             png: atom(b"image/png")?,
-            jpeg: atom(b"image/jpeg")?,
             targets: atom(b"TARGETS")?,
             incr: atom(b"INCR")?,
             secret_hint: atom(b"x-kde-passwordManagerHint")?,
@@ -376,8 +399,10 @@ pub fn start(
     let daemon = Daemon {
         h: h.clone(),
         last_press: None,
+        last_release: None,
+        down: false,
+        detectable: detectable_auto_repeat(&h.conn),
         stage: Stage::Idle,
-        image_target: h.a.png,
         on_copy: Box::new(on_copy),
         on_image: Box::new(on_image),
         on_hotkey: Box::new(on_hotkey),
@@ -405,10 +430,19 @@ impl Daemon {
                 Event::SelectionRequest(e) => self.serve(&e),
                 Event::SelectionClear(_) => *self.h.own.lock().unwrap() = None,
                 Event::KeyPress(e) if e.detail == self.h.hotkey.lock().unwrap().1 => {
-                    if !is_repeat(self.last_press, e.time) {
+                    // Detectable: a held key sends one press and no releases, so "already down" is a repeat.
+                    let repeat = if self.detectable {
+                        self.down
+                    } else {
+                        is_repeat(self.last_press, self.last_release, e.time)
+                    };
+                    if !repeat {
                         (self.on_hotkey)(e.time);
                     }
-                    self.last_press = Some(e.time);
+                    (self.last_press, self.down) = (Some(e.time), true);
+                }
+                Event::KeyRelease(e) if e.detail == self.h.hotkey.lock().unwrap().1 => {
+                    (self.last_release, self.down) = (Some(e.time), false);
                 }
                 _ => {}
             }
@@ -459,10 +493,9 @@ impl Daemon {
                 let targets = self.read_targets(prop).unwrap_or_default();
                 match plan(&targets, &self.h.a) {
                     Plan::Skip => {}
-                    Plan::Image(image) => {
+                    Plan::Image => {
                         self.stage = Stage::Image;
-                        self.image_target = image;
-                        self.request(image);
+                        self.request(self.h.a.png);
                     }
                     Plan::Text => {
                         self.stage = Stage::Text;
@@ -487,7 +520,7 @@ impl Daemon {
                 // No HTML flavor, or too big for one property: the text alone is still worth recording.
                 _ => (self.on_copy)(text, None),
             },
-            Stage::Image if target == self.image_target => {
+            Stage::Image if target == self.h.a.png => {
                 let Some(reply) = self.get(prop, MAX_IMAGE_UNITS) else {
                     return;
                 };
@@ -765,7 +798,6 @@ mod tests {
             utf8: 2,
             html: 3,
             png: 4,
-            jpeg: 5,
             targets: 6,
             incr: 7,
             secret_hint: 8,
@@ -776,10 +808,8 @@ mod tests {
         let a = &atoms;
         assert_eq!(plan(&[a.utf8, a.secret_hint], a), Plan::Skip, "password manager");
         assert_eq!(plan(&[a.png, a.secret_hint], a), Plan::Skip, "also for an image");
-        assert_eq!(plan(&[a.png], a), Plan::Image(a.png));
+        assert_eq!(plan(&[a.png], a), Plan::Image);
         assert_eq!(plan(&[a.png, a.utf8], a), Plan::Text, "text wins over its picture");
-        assert_eq!(plan(&[a.jpeg], a), Plan::Image(a.jpeg));
-        assert_eq!(plan(&[a.jpeg, a.png], a), Plan::Image(a.png), "PNG preferred");
         assert_eq!(plan(&[a.utf8, a.html], a), Plan::Text);
         assert_eq!(plan(&[], a), Plan::Text, "owner that does not answer TARGETS");
     }
@@ -836,9 +866,16 @@ mod tests {
 
     #[test]
     fn held_key_repeats_are_ignored() {
-        assert!(!is_repeat(None, 5), "first press");
-        assert!(is_repeat(Some(1000), 1030), "auto-repeat");
-        assert!(!is_repeat(Some(1000), 1000 + REPEAT_MS), "a real second press");
-        assert!(is_repeat(Some(u32::MAX - 10), 20), "across the timestamp wrap");
+        assert!(!is_repeat(None, None, 5), "first press");
+        assert!(is_repeat(Some(1000), None, 1030), "auto-repeat");
+        assert!(
+            !is_repeat(Some(1000), Some(1200), 1000 + REPEAT_MS),
+            "a real second press"
+        );
+        assert!(is_repeat(Some(u32::MAX - 10), None, 20), "across the timestamp wrap");
+        assert!(
+            is_repeat(Some(1000), Some(1500), 1500),
+            "first repeat after the ~500 ms delay"
+        );
     }
 }

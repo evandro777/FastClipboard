@@ -10,8 +10,8 @@ use crate::settings::{create_private_dir, write_private};
 /// A single huge copy (a log, a base64 blob) would make every save slow and the list useless.
 pub const MAX_ITEM_BYTES: usize = 1 << 20;
 /// All text and HTML together. The whole list is in RAM and rewritten to disk on every copy, so 500 big entries would
-/// make each copy slow; the oldest entries go first.
-const MAX_TOTAL_BYTES: usize = 32 << 20;
+/// make each copy slow (the save runs on the X11 thread, so it would also stall the hotkey); the oldest entries go first.
+const MAX_TOTAL_BYTES: usize = 4 << 20;
 /// All stored PNGs together (disk only: the list loads thumbnails). 500 screenshots of 8 MB would be 4 GB.
 const MAX_IMAGE_TOTAL_BYTES: usize = 1 << 30;
 /// Largest PNG kept. Bigger ones are skipped: 500 of them would fill the disk and a screenshot is rarely above this.
@@ -107,8 +107,15 @@ impl History {
         // shortcut: whole-file rewrite on every copy, fine for a few hundred items; move to SQLite beyond ~5k.
         let read = fs::read_to_string(path());
         let mut sweep = read.is_ok();
-        let mut history = toml::from_str(read.as_deref().unwrap_or_default()).unwrap_or_else(|e| {
-            let bad = path().with_extension("toml.bad");
+        // A file that cannot be read (bad UTF-8, I/O error, permissions) is kept like a corrupt one: treated as
+        // missing, the next save would overwrite it.
+        let parsed = match read {
+            Ok(text) => toml::from_str(&text).map_err(|e| e.to_string()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(History::default()),
+            Err(e) => Err(e.to_string()),
+        };
+        let mut history = parsed.unwrap_or_else(|e| {
+            let bad = crate::settings::backup_path(&path());
             eprintln!(
                 "history.toml is invalid ({e}); kept as {}, starting empty",
                 bad.display()
@@ -251,6 +258,15 @@ impl History {
         }
     }
 
+    /// Applies a lowered `max_items` right away instead of at the next copy.
+    pub fn set_max(&mut self, max: usize) {
+        let before = self.items.len();
+        self.truncate(max);
+        if self.items.len() != before {
+            self.rev += 1;
+        }
+    }
+
     fn delete_files(&self, items: &[Item]) {
         for image in items.iter().filter_map(|i| i.image.as_ref()) {
             let _ = fs::remove_file(self.file(&image.id, false));
@@ -371,6 +387,10 @@ mod tests {
             h.push(t.into(), None, 2);
         }
         assert_eq!(texts(&h), ["3", "2"]);
+        let rev = h.rev();
+        h.set_max(1);
+        assert_eq!(texts(&h), ["3"]);
+        assert_ne!(h.rev(), rev, "a trimmed list invalidates old row numbers");
         h.clear();
         assert!(h.items().is_empty());
     }
@@ -394,19 +414,19 @@ mod tests {
     fn total_text_budget_drops_the_oldest_and_keeps_the_newest() {
         let mut h = History::default();
         let big = "x".repeat(MAX_ITEM_BYTES - 8); // room for the number, or push() refuses it as too big
-        for i in 0..40 {
+        for i in 0..10 {
             h.push(format!("{i}{big}"), None, 500);
         }
         let total: usize = h.items().iter().map(|i| i.text.len()).sum();
         assert!(
-            total <= MAX_TOTAL_BYTES && h.items().len() >= 30,
+            total <= MAX_TOTAL_BYTES && h.items().len() >= 3,
             "{} items",
             h.items().len()
         );
-        assert!(h.items()[0].text.starts_with("39"), "the newest stays");
+        assert!(h.items()[0].text.starts_with('9'), "the newest stays");
         // A history file written before the budget existed is trimmed on load.
         let mut old = History {
-            items: (0..40)
+            items: (0..10)
                 .map(|i| Item {
                     text: format!("{i}{big}"),
                     html: None,
@@ -416,7 +436,7 @@ mod tests {
             ..Default::default()
         };
         old.truncate(usize::MAX);
-        assert!(old.items().len() < 40);
+        assert!(old.items().len() < 10);
     }
 
     #[test]
