@@ -56,15 +56,16 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
   2.. transforms); they paste text only and are not added to the history, like a plain paste. `x11::paste` first releases
   any modifier the user is still holding (query_keymap): otherwise a Shift+Enter pick arrived as Ctrl+Shift+V (Paste Special /
   nothing in xed) and Alt shortcuts as Ctrl+Alt+V. Alt+letter shortcuts were dropped for this menu.
-- Preferences: a second Slint window (`Preferences` in main.slint, snapshot page 1) opened by the burger button of the
-  popup, the tray, `--prefs` or the `prefs` socket command. Save applies without a restart: `x11::Handle::set_hotkey`
-  grabs the new key first and only then lets go of the old one (a taken key keeps the old shortcut), `max_items` is an
-  `AtomicUsize` read by the copy threads, and the language is switched with `select_bundled_translation` plus new tray
-  labels. The shortcut is typed as keys (FocusScope in the window, `record-key`; layout-independent through
+- Preferences: an overlay inside `Main` (`settings-open`, snapshot page 1), like every Fast app; opened by the burger
+  button, the tray, `--prefs` or the `prefs` socket command (`App::open_prefs` shows the popup first when hidden). Every
+  change applies and is saved at once, the only button is Close: `x11::Handle::set_hotkey` grabs the new key first and
+  only then lets go of the old one (a taken key keeps the old shortcut, `error` 2), `max_items` is a SpinBox 10 to 5000
+  and an `AtomicUsize` read by the copy threads, and the language is switched with `select_bundled_translation` plus new
+  tray labels. The shortcut is typed as keys (`keys` FocusScope, `record-key`; layout-independent through
   `Handle::base_key`); the grab swallows the current shortcut, so `App::toggle` treats it as "keep" while recording.
   Start at login (switch) and Clear history (with a confirmation overlay) act immediately; About is an overlay.
-  `LANGUAGES` in app.rs must stay in the order of `languages` in main.slint. The window was not given the popup's
-  focus hand-over (`activate`); check the keyboard focus under Muffin.
+  `LANGUAGES` in app.rs must stay in the order of `languages` in main.slint. While a dialog is open `focus-search` hands
+  the focus to the `keys` scope (the search box is disabled), and `on_focus_lost` does not hide the popup.
 - OCR languages: `ocr_lang = ""` means the interface language first, then English (`ocr::auto_lang`, mapped by hand, only packs
   `tesseract --list-langs` reports); a non-empty value is used as is.
 - OCR: the Shift+Enter menu depends on the row (`Row.is-image`): text rows get `text-options`, image rows get
@@ -75,15 +76,15 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
 - OCR availability: `ocr::status` (worker thread; `App::check_ocr`, guarded by `ocr_checking`) runs `--list-langs`; a failure in Flatpak is
   told apart (permission vs no tesseract) by `flatpak-spawn --host true`, and the wanted packs (`ocr_lang`, or `eng` in auto mode) are
   compared with the installed ones. The result is cached in `App.ocr_status` (starts Ready, so nothing is dimmed before the first check) and
-  re-run only while it is not Ready, at start and after saving the preferences. Not Ready: the OCR entries are dimmed (`Main.ocr-ready`) and
-  `choose` hides the popup and opens the preferences, whose OCR block (`ocr-state`) holds the fix; an overlay in the popup would close on
-  focus-out while the user copies the command. Fixtures: `FASTPASTE_OCR=noperm|notesseract|missing`. The flatpak-spawn probe is untested in a real Flatpak.
+  re-run only while it is not Ready, at start and after a language change. Not Ready: the OCR entries are dimmed (`Main.ocr-ready`) and
+  `choose` opens the preferences, whose OCR block (`ocr-state`) holds the fix; the popup stays open while they are, so the user can copy
+  the command into a terminal. Fixtures: `FASTPASTE_OCR=noperm|notesseract|missing`. The flatpak-spawn probe is untested in a real Flatpak.
 - A taken or invalid `hotkey` does not end the app: `x11::start` grabs nothing, `app::run` calls `set_hotkey` and, on
   failure, opens the preferences with `error` 1 or 2. The list rows are history indexes tagged with `History::rev`
   (`View.rev`, `resolve`): a copy while the popup is open makes a pick/remove do nothing and rebuild the list instead
-  of acting on another item. The data dir is 0700 and its files 0600 (`settings::create_private_dir/write_private`).
-- One instance only: `instance.rs` (ported from FastMoji) listens on `$XDG_RUNTIME_DIR/fastpaste.sock`. A later start
-  sends `show` (or `toggle` with `--toggle`) and exits, before Slint or X11 start; fixtures mode skips this so
+  of acting on another item. The data dir is 0700 and its files 0600 (`files::create_private_dir/write_private/write_atomic`, a verbatim copy of FastHello's `files.rs`).
+- One instance only: `instance.rs` (a verbatim copy of FastHello's, the same file in every Fast app: change it there, not here) listens on `$XDG_RUNTIME_DIR/fastpaste.sock`. A later start
+  sends `show` (or `toggle`/`prefs` from `command()` in `main.rs`) and exits, before Slint or X11 start; `claim` does the same when two starts race. Fixtures mode skips this so
   `ui-snapshot.sh` never pokes a real instance. When testing, point `XDG_RUNTIME_DIR` at a temp dir. Alt+digit is no longer bound, so it types in the search.
 
 ## Layout
@@ -131,6 +132,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 - UI strings use `@tr()`; strings built in Rust go through the `Tr` global in `ui/main.slint`. Never `format!` user-visible text in Rust.
 - `.po` files are generated by `dev/gen_po.py` (edit its table, run it, commit both). Slint's gettext context is the component name (`Main`, `Tr`). A new `@tr` string needs an entry in every language.
 - Language = `settings.language` (`""` = system locale).
+- Appearance = `settings.theme` (`""` = follow the system, `"light"`, `"dark"`). The Appearance box sets `Palette.color-scheme` in the `.slint` (`unknown` hands it back to the desktop); both windows do it, because each has its own `Palette`. `THEMES` and `theme_index` in `crates/app/src/app.rs` keep the order of that list, and a test checks they agree. `Family.dark` reads the drawn background, so it stays right in every state.
 
 ## Conventions
 
@@ -148,6 +150,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 
 - After any Slint UI change, run `scripts/ui-snapshot.sh <page>` and read the PNGs (empty, single, many) before saying the change is done. It uses a private Xvfb and canned data, so it never reads or changes the real system.
 - Specifically check: rows don't stretch when a list has 1 item, badges and buttons are right-aligned, icons are sharp, text is selectable as a block, and empty or error states (e.g. "nothing found") don't throw errors.
+- Controls in a row are the same height (32 px); tabs, search boxes and dialog cards use the kit's components (`TabBar`, `SearchBox`, the card in FastHello's `docs/UI-STYLE.md`).
 - If you can't launch it (e.g. the flow needs pkexec or a live X11 session), say so explicitly and list what I should test manually.
 
 ## Screenshots (README, landing page, store listings)
@@ -186,4 +189,4 @@ socket inside the sandbox first.
 
 ## Open items
 
-- Not done: Wayland, image formats other than PNG, a first real Flatpak build and run. See `TODO.md`.
+- Not done: Wayland, image formats other than PNG, a first real Flatpak build and run.

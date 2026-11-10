@@ -44,136 +44,124 @@ msgid "One line"
 msgstr "Uma linha"
 
 msgctxt "Main"
-msgid "OCR · Plain text"
-msgstr "OCR · Texto simples"
+msgid "Text in the image (OCR)"
+msgstr "Texto na imagem (OCR)"
 
 msgctxt "Main"
-msgid "OCR · Trim"
-msgstr "OCR · Aparar"
-
-msgctxt "Main"
-msgid "OCR · UPPER CASE"
-msgstr "OCR · MAIÚSCULAS"
-
-msgctxt "Main"
-msgid "OCR · lower case"
-msgstr "OCR · minúsculas"
-
-msgctxt "Main"
-msgid "OCR · One line"
-msgstr "OCR · Uma linha"
-
-msgctxt "Preferences"
-msgid "FastPaste preferences"
-msgstr "Preferências do FastPaste"
-
-msgctxt "Preferences"
 msgid "System"
 msgstr "Sistema"
 
-msgctxt "Preferences"
+msgctxt "Main"
+msgid "Appearance"
+msgstr "Aparência"
+
+msgctxt "Main"
+msgid "Light"
+msgstr "Claro"
+
+msgctxt "Main"
+msgid "Dark"
+msgstr "Escuro"
+
+msgctxt "Main"
 msgid "Shortcut"
 msgstr "Atalho"
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "Entries kept"
 msgstr "Entradas guardadas"
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "Language"
 msgstr "Idioma"
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed."
 msgstr "Também usado para ler texto de imagens (OCR): este idioma primeiro, depois inglês, se os pacotes do tesseract estiverem instalados."
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):"
 msgstr "OCR desativado: o FastPaste não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "OCR needs tesseract, which is not installed. Install it, with English, then see the help page."
 msgstr "O OCR precisa do tesseract, que não está instalado. Instale-o, com o inglês, e veja a página de ajuda."
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "OCR languages not installed: {}. Install them, then see the help page."
 msgstr "Idiomas do OCR não instalados: {}. Instale-os e veja a página de ajuda."
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "Help page"
 msgstr "Página de ajuda"
 
-msgctxt "Preferences"
-msgid "Use modifiers and one letter or digit, like ctrl+alt+v."
-msgstr "Use modificadores e uma letra ou dígito, como ctrl+alt+v."
+msgctxt "Main"
+msgid "Use modifiers and one letter or digit, like Ctrl+Alt+V."
+msgstr "Use modificadores e uma letra ou dígito, como Ctrl+Alt+V."
 
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "That shortcut is already in use by another program."
 msgstr "Esse atalho já está em uso por outro programa."
 
-msgctxt "Preferences"
-msgid "Entries kept must be a number from 10 to 5000."
-msgstr "Entradas guardadas deve ser um número de 10 a 5000."
-
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "Cancel"
 msgstr "Cancelar"
 
-msgctxt "Preferences"
-msgid "Save"
-msgstr "Salvar"
-
-msgctxt "Preferences"
-msgid "Start at login"
-msgstr "Iniciar com o sistema"
-
-msgctxt "Preferences"
-msgid "Clipboard history"
-msgstr "Histórico da área de transferência"
-
-msgctxt "Preferences"
-msgid "Clear history…"
-msgstr "Limpar histórico…"
-
-msgctxt "Preferences"
-msgid "Clear history?"
-msgstr "Limpar o histórico?"
-
-msgctxt "Preferences"
-msgid "Every copied text and image will be deleted. This cannot be undone."
-msgstr "Todos os textos e imagens copiados serão apagados. Isso não pode ser desfeito."
-
-msgctxt "Preferences"
-msgid "Clear history"
-msgstr "Limpar histórico"
-
-msgctxt "Preferences"
-msgid "Quit FastPaste"
-msgstr "Sair do FastPaste"
-
-msgctxt "Preferences"
-msgid "About"
-msgstr "Sobre"
-
-msgctxt "Preferences"
+msgctxt "Main"
 msgid "Close"
 msgstr "Fechar"
 
-msgctxt "Preferences"
-msgid "Version {}"
-msgstr "Versão {}"
+msgctxt "Main"
+msgid "Start at login"
+msgstr "Iniciar com o sistema"
 
-msgctxt "Preferences"
+msgctxt "Main"
+msgid "Clipboard history"
+msgstr "Histórico da área de transferência"
+
+msgctxt "Main"
+msgid "Clear history…"
+msgstr "Limpar histórico…"
+
+msgctxt "Main"
+msgid "Clear history?"
+msgstr "Limpar o histórico?"
+
+msgctxt "Main"
+msgid "Every copied text and image will be deleted. This cannot be undone."
+msgstr "Todos os textos e imagens copiados serão apagados. Isso não pode ser desfeito."
+
+msgctxt "Main"
+msgid "Clear history"
+msgstr "Limpar histórico"
+
+msgctxt "Main"
+msgid "Quit FastPaste"
+msgstr "Sair do FastPaste"
+
+msgctxt "Main"
+msgid "About"
+msgstr "Sobre"
+
+msgctxt "Main"
 msgid "Light and fast clipboard history for Linux."
 msgstr "Histórico da área de transferência leve e rápido para Linux."
 
-msgctxt "Preferences"
+msgctxt "AboutCard"
+msgid "Version {}"
+msgstr "Versão {}"
+
+msgctxt "AboutCard"
 msgid "Author: {}"
 msgstr "Autor: {}"
 
-msgctxt "Preferences"
+msgctxt "AboutCard"
 msgid "License: {}"
 msgstr "Licença: {}"
+
+msgctxt "AboutCard"
+msgid "Close"
+msgstr "Fechar"
 
 msgctxt "Main"
 msgid "Preferences"

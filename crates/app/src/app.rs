@@ -28,13 +28,21 @@ use slint::{
 };
 
 use crate::{
-    Main, Preferences, Row, Tr, autostart, images, instance, ocr,
+    Main, Row, Tr, autostart, images, instance, ocr,
     tray::{self, Actions, FastTray, Labels},
     x11,
 };
 
 /// Language codes behind the preferences' language list (`languages` in main.slint, same order); "" = the system's.
 const LANGUAGES: [&str; 3] = ["", "en", "pt_BR"];
+
+/// `settings.theme` for each entry of the Appearance list (`appearances` in main.slint, same order): system, light, dark.
+const THEMES: [&str; 3] = ["", "light", "dark"];
+
+/// The Appearance list index of a `settings.theme` value; anything unknown follows the system.
+pub fn theme_index(theme: &str) -> i32 {
+    THEMES.iter().position(|t| *t == theme).unwrap_or(0) as i32
+}
 
 /// Row heights in logical pixels (rows are laid out by `Row.height` in main.slint; image rows hold a 64 px thumbnail).
 const TEXT_ROW: f32 = 38.0;
@@ -74,10 +82,8 @@ struct App {
     history: Arc<Mutex<History>>,
     view: RefCell<View>,
     x: x11::Handle,
-    /// Mutable only for the remembered popup size.
+    /// The remembered popup size and everything the preferences change.
     settings: RefCell<Settings>,
-    /// The preferences window while it exists (kept alive here; hidden when closed).
-    prefs: RefCell<Option<Preferences>>,
     /// Read by the copy threads, so a new cap applies to the next copy.
     max_items: Arc<AtomicUsize>,
     /// Kept to retranslate the menu when the language changes.
@@ -164,7 +170,14 @@ pub fn run(ui: Main, settings: Settings) {
                     eprintln!("image skipped: not a valid PNG");
                     continue;
                 };
-                let thumb = images::thumbnail(&png);
+                let thumb = match images::thumbnail(&png) {
+                    images::Thumb::Made(t) => Some(t),
+                    images::Thumb::Skipped => None,
+                    images::Thumb::Broken => {
+                        eprintln!("image skipped: the PNG data is damaged");
+                        continue;
+                    }
+                };
                 debug(|| {
                     format!(
                         "image recorded: {} bytes, {}x{}, thumbnail {}",
@@ -199,7 +212,8 @@ pub fn run(ui: Main, settings: Settings) {
         }
     };
     let hotkey_time_cmd = hotkey_time.clone();
-    if let Err(e) = instance::listen(move |command| {
+    // Lost the start-up race to another instance: `claim` handed it our command, so leave.
+    if instance::claim(crate::command(), move |command| {
         // No hotkey event behind a socket command, so no timestamp (0 = CurrentTime).
         hotkey_time_cmd.store(0, Ordering::SeqCst);
         match command.as_str() {
@@ -209,12 +223,7 @@ pub fn run(ui: Main, settings: Settings) {
             _ => {}
         }
     }) {
-        if e.kind() == std::io::ErrorKind::AddrInUse {
-            // Lost the start-up race to another instance: hand it our command and leave.
-            instance::send(instance::command());
-            return;
-        }
-        eprintln!("single-instance socket failed: {e}");
+        return;
     }
     let x = x11::start(on_copy, on_image, on_hotkey).unwrap_or_else(|e| {
         eprintln!("{e}");
@@ -223,7 +232,7 @@ pub fn run(ui: Main, settings: Settings) {
     // A shortcut that is taken (or invalid) must not end the app: the tray and the preferences are how it gets fixed.
     let hotkey_error = x.set_hotkey(&settings.hotkey).err().map(|e| {
         eprintln!("{e}");
-        // Same codes as `save_prefs`: 1 not valid, 2 taken.
+        // Same codes as `record_key`: 1 not valid, 2 taken.
         if x11::parse_hotkey(&settings.hotkey).is_none() {
             1
         } else {
@@ -237,7 +246,6 @@ pub fn run(ui: Main, settings: Settings) {
         view: RefCell::new(View::default()),
         x,
         settings: RefCell::new(settings),
-        prefs: RefCell::new(None),
         max_items,
         tray: RefCell::new(None),
         hotkey_time,
@@ -303,6 +311,45 @@ pub fn run(ui: Main, settings: Settings) {
     });
 
     ui.on_open_prefs(|| post(App::open_prefs));
+    ui.on_set_theme({
+        let app = app.clone();
+        move |i| app.set_theme(i)
+    });
+    ui.on_set_language({
+        let app = app.clone();
+        move |i| app.set_language(i)
+    });
+    ui.on_set_max_items({
+        let app = app.clone();
+        move |n| app.set_max_items(n)
+    });
+    ui.on_record_key({
+        let app = app.clone();
+        move |text, ctrl, alt, shift, meta| app.record_key(&text, [ctrl, alt, shift, meta])
+    });
+    let weak = ui.as_weak();
+    ui.on_set_autostart(move |on| {
+        let weak = weak.clone();
+        // A thread: in Flatpak the portal blocks while the desktop asks the user.
+        std::thread::spawn(move || {
+            if let Err(e) = autostart::set(on) {
+                eprintln!("cannot change the autostart entry: {e}");
+                // Put the switch back to what is really set.
+                let _ = weak.upgrade_in_event_loop(|w| w.set_autostart(autostart::is_enabled()));
+            }
+        });
+    });
+    ui.on_clear_history(|| post(App::clear_history));
+    ui.on_quit(|| {
+        let _ = slint::quit_event_loop();
+    });
+    ui.on_open_url(|url| {
+        // Reaped on a thread, or every click would leave a zombie in this long-lived process.
+        if let Ok(mut child) = std::process::Command::new("xdg-open").arg(url.as_str()).spawn() {
+            std::thread::spawn(move || _ = child.wait());
+        }
+    });
+    ui.on_held_text(|ctrl, alt, shift, meta| held_text([ctrl, alt, shift, meta]).into());
     *app.tray.borrow_mut() = tray::spawn(
         tray_labels(&ui),
         Actions {
@@ -317,12 +364,10 @@ pub fn run(ui: Main, settings: Settings) {
     );
 
     if let Some(code) = hotkey_error {
-        // One closure: `open_prefs` makes a new window each time, so the error has to go to that same one.
+        // After `open_prefs`, which clears the error.
         post(move |app| {
             app.open_prefs();
-            if let Some(win) = app.prefs.borrow().as_ref() {
-                win.set_error(code);
-            }
+            app.ui().set_error(code);
         });
     }
 
@@ -330,13 +375,15 @@ pub fn run(ui: Main, settings: Settings) {
     slint::run_event_loop_until_quit().unwrap();
 }
 
-pub fn fill_ocr(win: &Preferences, status: &ocr::Status) {
-    win.set_ocr_state(status.code());
-    win.set_ocr_missing(status.missing().into());
-    win.set_ocr_command(status.command().into());
-    // Room for the explanation (the window is not resizable, so the layout would otherwise push Save out of view).
-    let height = if status.code() == 0 { 470.0 } else { 560.0 };
-    win.window().set_size(slint::LogicalSize::new(440.0, height));
+/// Preferences, About or the clear-history question is open over the list.
+fn ui_has_dialog(ui: &Main) -> bool {
+    ui.get_settings_open() || ui.get_about_open() || ui.get_confirm_clear()
+}
+
+pub fn fill_ocr(ui: &Main, status: &ocr::Status) {
+    ui.set_ocr_state(status.code());
+    ui.set_ocr_missing(status.missing().into());
+    ui.set_ocr_command(status.command().into());
 }
 
 fn tray_labels(ui: &Main) -> Labels {
@@ -357,8 +404,7 @@ impl App {
     /// elsewhere or a paste do). `--toggle` still toggles.
     fn hotkey_pressed(&self) {
         let time = self.hotkey_time.load(Ordering::SeqCst);
-        if self.ui().window().is_visible() && !self.prefs.borrow().as_ref().is_some_and(|w| w.get_recording_shortcut())
-        {
+        if self.ui().window().is_visible() && !self.ui().get_recording_shortcut() {
             self.activate(time);
             self.ui().invoke_focus_search();
         } else {
@@ -369,8 +415,8 @@ impl App {
     fn toggle(&self) {
         let ui = self.ui();
         // The grab swallows the current shortcut while the preferences record a new one: pressing it again means "keep it".
-        if let Some(win) = self.prefs.borrow().as_ref().filter(|w| w.get_recording_shortcut()) {
-            win.set_recording_shortcut(false);
+        if ui.get_recording_shortcut() {
+            ui.set_recording_shortcut(false);
         } else if ui.window().is_visible() {
             self.hide();
         } else if self.closed_by_focus_at.get().is_some_and(|t| t.elapsed() < FOCUS_GRACE) {
@@ -392,6 +438,11 @@ impl App {
         ui.set_query("".into());
         ui.set_current(0);
         ui.set_menu_open(false);
+        // A dialog left open when the popup was hidden (Esc on the list never closes one) must not come back.
+        ui.set_settings_open(false);
+        ui.set_about_open(false);
+        ui.set_confirm_clear(false);
+        ui.set_recording_shortcut(false);
         self.refresh();
         // Only while broken: a working setup is not re-checked on every open.
         if *self.ocr_status.borrow() != ocr::Status::Ready {
@@ -404,7 +455,7 @@ impl App {
         ui.window().set_size(slint::LogicalSize::new(width, height));
         // The WM must hear the position before the window is mapped, or it shows it at its own spot first and the
         // popup visibly jumps: a position hint on the existing window, and set_position for the very first show.
-        let position = self.target_position(width, height, false);
+        let position = self.target_position(width, height);
         if let Some((x, y)) = position {
             if let Some(id) = self.window_id() {
                 self.x.set_position_hint(id, x, y);
@@ -443,9 +494,8 @@ impl App {
     }
 
     /// Where the popup goes: centered on the mouse pointer, kept inside the monitor the pointer is on.
-    /// `None` when the pointer cannot be read (the WM then picks a spot). `centered` aims at the middle of that
-    /// monitor instead of the pointer.
-    fn target_position(&self, width: f32, height: f32, centered: bool) -> Option<(i32, i32)> {
+    /// `None` when the pointer cannot be read (the WM then picks a spot).
+    fn target_position(&self, width: f32, height: f32) -> Option<(i32, i32)> {
         let ui = self.ui();
         let window = ui.window();
         let scale = window.scale_factor();
@@ -471,9 +521,8 @@ impl App {
             .find(|&(x, y, w, h)| (x..x + w).contains(&px) && (y..y + h).contains(&py))
             .or_else(|| self.x.screen_size().map(|(w, h)| (0, 0, w, h)))
             .unwrap_or((0, 0, i32::MAX, i32::MAX));
-        let (ax, ay) = if centered { (mx + mw / 2, my + mh / 2) } else { (px, py) };
-        let x = (ax - w / 2).clamp(mx, mx + (mw - w).max(0));
-        let y = (ay - h / 2).clamp(my, my + (mh - h).max(0));
+        let x = (px - w / 2).clamp(mx, mx + (mw - w).max(0));
+        let y = (py - h / 2).clamp(my, my + (mh - h).max(0));
         debug(|| format!("place at {x},{y} (pointer {px},{py}, monitor {mx},{my} {mw}x{mh}, popup {w}x{h})"));
         Some((x, y))
     }
@@ -556,6 +605,9 @@ impl App {
         if self.shown_at.get().is_some_and(|t| t.elapsed() < FOCUS_GRACE) {
             // The WM sometimes bounces focus right after mapping; ask again instead of hiding.
             self.activate(self.hotkey_time.load(Ordering::SeqCst));
+        } else if ui_has_dialog(&self.ui()) {
+            // Preferences and About stay while the user works elsewhere (copying the OCR command into a terminal).
+            debug(|| "focus-out ignored: a dialog is open".into());
         } else if self.window_id().is_some_and(|id| self.x.input_focus_inside(id)) {
             // Pressing or releasing a grabbed key sends the window a focus-out (mode Grab/Ungrab) although the X
             // input focus never moved; only the server can tell that from a real focus change.
@@ -689,9 +741,8 @@ impl App {
                     return self.pick(row, false);
                 }
                 if *self.ocr_status.borrow() != ocr::Status::Ready {
-                    // The preferences explain what is missing; the popup would close on focus-out while the user
-                    // copies the command.
-                    self.hide();
+                    // The preferences explain what is missing; the popup stays open while they are, so the user can
+                    // copy the command into a terminal.
                     return self.open_prefs();
                 }
                 return self.ocr(row, transform);
@@ -725,10 +776,9 @@ impl App {
     }
 
     fn set_ocr_status(&self, status: ocr::Status) {
-        self.ui().set_ocr_ready(status == ocr::Status::Ready);
-        if let Some(win) = self.prefs.borrow().as_ref() {
-            fill_ocr(win, &status);
-        }
+        let ui = self.ui();
+        ui.set_ocr_ready(status == ocr::Status::Ready);
+        fill_ocr(&ui, &status);
         *self.ocr_status.borrow_mut() = status;
     }
 
@@ -767,111 +817,59 @@ impl App {
         });
     }
 
+    /// Opens the popup if needed and shows Preferences over it (burger button, tray, `--prefs`, a missing OCR setup).
     pub fn open_prefs(&self) {
-        // Already open: bring it back instead of rebuilding it, which would throw away what the user typed.
-        if let Some(win) = self.prefs.borrow().as_ref().filter(|w| w.window().is_visible()) {
-            let _ = win.show();
-            return;
+        let ui = self.ui();
+        if !ui.window().is_visible() {
+            self.open(0);
         }
-        let win = Preferences::new().unwrap();
         {
             let s = self.settings.borrow();
-            win.set_hotkey(s.hotkey.clone().into());
-            win.set_max_items(s.max_items.to_string().into());
-            win.set_language(LANGUAGES.iter().position(|l| *l == s.language).unwrap_or(0) as i32);
+            ui.set_hotkey(shown_hotkey(&s.hotkey).into());
+            ui.set_max_items(s.max_items as i32);
+            ui.set_language(LANGUAGES.iter().position(|l| *l == s.language).unwrap_or(0) as i32);
+            ui.set_color_scheme_index(theme_index(&s.theme));
         }
-        // Through the thread-local, not a captured `Rc<App>`: the window lives in the app, a captured Rc would be a cycle.
-        win.on_save(|hotkey, max, language| {
-            APP.with(|a| a.borrow().clone())
-                .map_or(0, |app| app.save_prefs(&hotkey, &max, language))
-        });
-        win.on_cancel(|| {
-            if let Some(app) = APP.with(|a| a.borrow().clone()) {
-                app.close_prefs();
-            }
-        });
-        let weak = win.as_weak();
-        win.on_set_autostart(move |on| {
-            let weak = weak.clone();
-            // A thread: in Flatpak the portal blocks while the desktop asks the user.
-            std::thread::spawn(move || {
-                if let Err(e) = autostart::set(on) {
-                    eprintln!("cannot change the autostart entry: {e}");
-                    // Put the switch back to what is really set.
-                    let _ = weak.upgrade_in_event_loop(|w| w.set_autostart(autostart::is_enabled()));
-                }
-            });
-        });
-        win.on_clear_history(|| post(App::clear_history));
-        win.on_quit(|| {
-            let _ = slint::quit_event_loop();
-        });
-        win.on_open_url(|url| {
-            let _ = std::process::Command::new("xdg-open").arg(url.as_str()).spawn();
-        });
-        win.on_held_text(|ctrl, alt, shift, meta| held_text([ctrl, alt, shift, meta]).into());
-        let weak = win.as_weak();
-        win.on_record_key(move |text, ctrl, alt, shift, meta| {
-            let Some(app) = APP.with(|a| a.borrow().clone()) else {
-                return false;
-            };
-            let mut text = text.to_string();
-            if let Some(c) = text.chars().next().filter(|_| text.chars().count() == 1)
-                && let Some(base) = app.x.base_key(c)
-            {
-                text = base.to_string();
-            }
-            let Some(hotkey) = shortcut_from_key(&text, [ctrl, alt, shift, meta]) else {
-                return false;
-            };
-            weak.upgrade().is_some_and(|w| {
-                w.set_hotkey(hotkey.into());
-                true
-            })
-        });
-        win.set_autostart(autostart::is_enabled());
-        fill_ocr(&win, &self.ocr_status.borrow());
-        // The user may have installed it since the last check; the answer updates the window.
+        ui.set_error(0);
+        ui.set_autostart(autostart::is_enabled());
+        ui.set_version(env!("CARGO_PKG_VERSION").into());
+        fill_ocr(&ui, &self.ocr_status.borrow());
+        // The user may have installed it since the last check; the answer updates the dialog.
         self.check_ocr();
-        win.set_version(env!("CARGO_PKG_VERSION").into());
-        // Before show(), like the popup: the WM must hear the position before it maps the window. The size is the
-        // `preferred-*` of the component (440x470).
-        if let Some((x, y)) = self.target_position(440.0, 470.0, true) {
-            win.window().set_position(PhysicalPosition::new(x, y));
-        }
-        let _ = win.show();
-        *self.prefs.borrow_mut() = Some(win);
+        ui.invoke_show_settings();
     }
 
-    fn close_prefs(&self) {
-        if let Some(win) = self.prefs.borrow().as_ref() {
-            win.set_recording_shortcut(false);
-            let _ = win.hide();
-        }
+    fn set_theme(&self, index: i32) {
+        let mut s = self.settings.borrow_mut();
+        s.theme = THEMES.get(index as usize).copied().unwrap_or("").into();
+        s.save();
+        self.ui().set_color_scheme_index(index);
     }
 
-    /// Validates and applies the preferences without a restart: the grab moves, the cap is read by the next copy and the
-    /// language is switched in place. Returns the `error` code of the window: 0 saved, 1 shortcut not valid,
-    /// 2 shortcut taken, 3 cap out of range.
-    fn save_prefs(&self, hotkey: &str, max: &str, language: i32) -> i32 {
-        let hotkey = hotkey.trim().to_lowercase();
-        if x11::parse_hotkey(&hotkey).is_none() {
-            return 1;
-        }
-        let Some(max_items) = max.trim().parse().ok().filter(|n| MAX_ITEMS_RANGE.contains(n)) else {
-            return 3;
-        };
-        if let Err(e) = self.x.set_hotkey(&hotkey) {
-            eprintln!("{e}");
-            return 2;
-        }
+    /// Switches the language in place: the interface, the tray menu and the automatic OCR languages follow it.
+    fn set_language(&self, index: i32) {
         {
             let mut s = self.settings.borrow_mut();
-            s.hotkey = hotkey;
-            s.max_items = max_items;
-            s.language = LANGUAGES.get(language as usize).copied().unwrap_or("").into();
+            s.language = LANGUAGES.get(index as usize).copied().unwrap_or("").into();
             s.save();
             crate::apply_language(&s);
+        }
+        if let Some(tray) = self.tray.borrow().as_ref() {
+            tray::set_labels(tray, tray_labels(&self.ui()));
+        }
+        self.refresh();
+        self.check_ocr();
+    }
+
+    /// The cap is read by the next copy; entries beyond a lower cap go now.
+    fn set_max_items(&self, value: i32) {
+        let Some(max_items) = usize::try_from(value).ok().filter(|n| MAX_ITEMS_RANGE.contains(n)) else {
+            return;
+        };
+        {
+            let mut s = self.settings.borrow_mut();
+            s.max_items = max_items;
+            s.save();
         }
         self.max_items.store(max_items, Ordering::SeqCst);
         {
@@ -879,16 +877,36 @@ impl App {
             h.set_max(max_items);
             h.save();
         }
-        if self.ui().window().is_visible() {
-            self.refresh();
+        self.refresh();
+    }
+
+    /// A key press while the Shortcut button records. True ends the recording: the new shortcut is grabbed first and
+    /// only then replaces the old one, so a taken key (`error` 2) keeps the shortcut that works.
+    fn record_key(&self, text: &str, modifiers: [bool; 4]) -> bool {
+        let mut text = text.to_string();
+        if let Some(c) = text.chars().next().filter(|_| text.chars().count() == 1)
+            && let Some(base) = self.x.base_key(c)
+        {
+            text = base.to_string();
         }
-        if let Some(tray) = self.tray.borrow().as_ref() {
-            tray::set_labels(tray, tray_labels(&self.ui()));
+        let Some(hotkey) = shortcut_from_key(&text, modifiers) else {
+            return false;
+        };
+        let ui = self.ui();
+        let hotkey = hotkey.trim().to_lowercase();
+        if x11::parse_hotkey(&hotkey).is_none() {
+            ui.set_error(1);
+        } else if let Err(e) = self.x.set_hotkey(&hotkey) {
+            eprintln!("{e}");
+            ui.set_error(2);
+        } else {
+            ui.set_error(0);
+            ui.set_hotkey(shown_hotkey(&hotkey).into());
+            let mut s = self.settings.borrow_mut();
+            s.hotkey = hotkey;
+            s.save();
         }
-        // The automatic OCR languages follow the interface language.
-        self.check_ocr();
-        self.close_prefs();
-        0
+        true
     }
 
     fn paste_payload(&self, payload: Payload) {
@@ -979,6 +997,20 @@ fn shortcut_from_key(text: &str, mods: [bool; 4]) -> Option<String> {
     Some(parts.join("+"))
 }
 
+/// The stored shortcut ("ctrl+alt+v") as shown in Preferences ("Ctrl+Alt+V"); the stored value stays as it is.
+fn shown_hotkey(stored: &str) -> String {
+    stored
+        .split('+')
+        .map(|p| {
+            let mut c = p.chars();
+            c.next()
+                .map(|f| f.to_uppercase().chain(c).collect())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<String>>()
+        .join("+")
+}
+
 /// Live label while recording: "Ctrl + Alt + …", or the prompt when nothing is held.
 fn held_text(mods: [bool; 4]) -> String {
     let held: Vec<&str> = ["Ctrl", "Alt", "Shift", "Super"]
@@ -1022,8 +1054,23 @@ fn one_line(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{View, one_line, resolve, shortcut_from_key};
+    use super::{THEMES, View, one_line, resolve, shortcut_from_key, shown_hotkey, theme_index};
     use fastpaste_core::history::History;
+
+    #[test]
+    fn shortcut_is_shown_capitalised() {
+        assert_eq!(shown_hotkey("ctrl+alt+v"), "Ctrl+Alt+V");
+        assert_eq!(shown_hotkey("super+F5"), "Super+F5");
+        assert_eq!(shown_hotkey(""), "");
+    }
+
+    #[test]
+    fn themes_and_their_indexes_agree() {
+        for (i, t) in THEMES.iter().enumerate() {
+            assert_eq!(theme_index(t), i as i32);
+        }
+        assert_eq!(theme_index("bogus"), 0);
+    }
 
     #[test]
     fn a_row_resolves_only_while_the_list_matches_the_history() {

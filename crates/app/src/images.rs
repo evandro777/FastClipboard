@@ -83,21 +83,35 @@ fn encode_rgba(w: u32, h: u32, rgba: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// A small PNG of `png` for the list; `None` when it is too big to decode in reasonable time, interlaced, or cannot
-/// be decoded. Decoded row by row and averaged straight into the thumbnail (every output pixel is the mean of the
-/// source pixels it covers), so memory stays at one row however big the screenshot is: decoding the whole image took
-/// 80-130 MB for a 4K/5K one, and glibc then kept part of it.
-pub fn thumbnail(png: &[u8]) -> Option<Vec<u8>> {
+/// What `thumbnail` made of a PNG.
+#[derive(Debug, PartialEq)]
+pub enum Thumb {
+    Made(Vec<u8>),
+    /// Valid but not decoded: too big to do in reasonable time, or interlaced. The row shows only its label.
+    Skipped,
+    /// The data does not decode (truncated, corrupt): the image is not worth storing.
+    Broken,
+}
+
+/// A small PNG of `png` for the list. Decoded row by row and averaged straight into the thumbnail (every output pixel
+/// is the mean of the source pixels it covers), so memory stays at one row however big the screenshot is: decoding the
+/// whole image took 80-130 MB for a 4K/5K one, and glibc then kept part of it.
+pub fn thumbnail(png: &[u8]) -> Thumb {
     let mut decoder = Decoder::new(Cursor::new(png));
     decoder.set_transformations(Transformations::EXPAND | Transformations::STRIP_16);
-    let mut reader = decoder.read_info().ok()?;
+    let Ok(mut reader) = decoder.read_info() else {
+        return Thumb::Broken;
+    };
     let (w, h, interlaced) = {
         let info = reader.info();
         (info.width, info.height, info.interlaced)
     };
+    if w == 0 || h == 0 {
+        return Thumb::Broken;
+    }
     // `next_row` of an interlaced image yields the passes of Adam7, not whole rows; those get the text label.
-    if w == 0 || h == 0 || interlaced || u64::from(w) * u64::from(h) > MAX_THUMB_SOURCE_PIXELS {
-        return None;
+    if interlaced || u64::from(w) * u64::from(h) > MAX_THUMB_SOURCE_PIXELS {
+        return Thumb::Skipped;
     }
     let channels = reader.output_color_type().0.samples();
     let (tw, th) = fit(w, h);
@@ -106,14 +120,16 @@ pub fn thumbnail(png: &[u8]) -> Option<Vec<u8>> {
     let mut sums = vec![0u64; tw * th as usize * 4];
     let mut counts = vec![0u64; tw * th as usize];
     for &cell_row in &rows {
-        let row = reader.next_row().ok()??;
+        let Ok(Some(row)) = reader.next_row() else {
+            return Thumb::Broken;
+        };
         for (px, &cell) in row.data().chunks_exact(channels).zip(&cols) {
             let rgba = match *px {
                 [g] => [g, g, g, 255],
                 [g, a] => [g, g, g, a],
                 [r, g, b] => [r, g, b, 255],
                 [r, g, b, a] => [r, g, b, a],
-                _ => return None,
+                _ => return Thumb::Broken,
             };
             let i = cell_row * tw + cell;
             counts[i] += 1;
@@ -129,7 +145,7 @@ pub fn thumbnail(png: &[u8]) -> Option<Vec<u8>> {
         .zip(&counts)
         .flat_map(|(s, &n)| s.iter().map(move |&v| (v / n.max(1)) as u8))
         .collect();
-    encode_rgba(tw as u32, th, &out)
+    encode_rgba(tw as u32, th, &out).map_or(Thumb::Broken, Thumb::Made)
 }
 
 /// A stored thumbnail as an image the UI can show.
@@ -153,11 +169,18 @@ mod tests {
         encode_rgba(w, h, &rgba).unwrap()
     }
 
+    fn made(png: &[u8]) -> Vec<u8> {
+        match thumbnail(png) {
+            Thumb::Made(t) => t,
+            other => panic!("no thumbnail: {other:?}"),
+        }
+    }
+
     #[test]
     fn thumbnail_fits_the_box_and_keeps_the_aspect() {
         let big = gradient(400, 100);
         assert_eq!(size(&big), Some((400, 100)));
-        let thumb = thumbnail(&big).unwrap();
+        let thumb = made(&big);
         assert_eq!(size(&thumb), Some((192, 48)));
         let (_, _, px) = decode_rgba(&thumb).unwrap();
         assert!(
@@ -165,7 +188,7 @@ mod tests {
             "red grows to the right: averaged, not garbled"
         );
         // A small image is not enlarged.
-        assert_eq!(size(&thumbnail(&gradient(10, 10)).unwrap()), Some((10, 10)));
+        assert_eq!(size(&made(&gradient(10, 10))), Some((10, 10)));
     }
 
     /// The thumbnail the old way: the whole image as RGBA, then the mean of the source pixels each output pixel covers.
@@ -219,7 +242,7 @@ mod tests {
             writer.write_image_data(&data).unwrap();
             writer.finish().unwrap();
 
-            let thumb = thumbnail(&png).unwrap_or_else(|| panic!("{color:?}: no thumbnail"));
+            let thumb = made(&png);
             let (tw, th, pixels) = decode_rgba(&thumb).unwrap();
             let (rw, rh, expected) = reference_thumbnail(&png);
             assert_eq!((tw, th), (rw, rh), "{color:?}: size");
@@ -239,7 +262,7 @@ mod tests {
             w.finish().unwrap();
             png
         };
-        assert!(thumbnail(&huge).is_none());
+        assert_eq!(thumbnail(&huge), Thumb::Skipped);
         // Every source position maps to a cell, in order, and every cell gets at least one.
         let map = cell_map(500, 192);
         assert!(map.windows(2).all(|p| p[1] == p[0] || p[1] == p[0] + 1));
@@ -249,7 +272,10 @@ mod tests {
     #[test]
     fn garbage_and_other_color_types() {
         assert_eq!(size(b"not a png"), None);
-        assert!(thumbnail(b"not a png").is_none());
+        assert_eq!(thumbnail(b"not a png"), Thumb::Broken);
+        // Valid header, data cut short (an app that died mid-copy): broken, not "too big".
+        let whole = gradient(50, 50);
+        assert_eq!(thumbnail(&whole[..whole.len() / 2]), Thumb::Broken);
         let mut gray = Vec::new();
         let mut enc = Encoder::new(&mut gray, 2, 1);
         enc.set_color(ColorType::Grayscale);

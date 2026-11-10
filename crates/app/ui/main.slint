@@ -1,4 +1,7 @@
-import { Button, ComboBox, LineEdit, ListView, Palette, Switch } from "std-widgets.slint";
+import { Button, ComboBox, ListView, Palette, ScrollView, SpinBox, Switch } from "std-widgets.slint";
+import { Family } from "family.slint";
+import { AboutCard, PrefRow } from "about.slint";
+import { AlertIcon, MenuButton, SearchBox } from "controls.slint";
 
 // `thumb` is only meaningful when `has-thumb` is set (an image entry whose thumbnail could be made). Image rows are
 // taller than text rows, so Rust gives each row its `height` and the `top` offset in the list (for scrolling to it).
@@ -30,20 +33,82 @@ export component Main inherits Window {
     // False when tesseract or a language pack is missing: the OCR entries are dimmed, and picking one opens the
     // preferences, which say what to install.
     in property <bool> ocr-ready: true;
+    // 0 follows the system, 1 light, 2 dark (settings.theme). Palette.color-scheme is the only palette property an app
+    // can set, and each window has its own Palette, so Preferences does the same.
+    in property <int> color-scheme-index;
+    changed color-scheme-index => {
+        Palette.color-scheme = root.color-scheme-index == 1 ? ColorScheme.light
+            : root.color-scheme-index == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
     property <int> menu-index;
     property <[string]> text-options: [
         @tr("Original"), @tr("Plain text"), @tr("Trim"), @tr("UPPER CASE"), @tr("lower case"), @tr("One line"),
     ];
-    property <[string]> image-options: [
-        @tr("Original"), @tr("OCR · Plain text"), @tr("OCR · Trim"), @tr("OCR · UPPER CASE"), @tr("OCR · lower case"),
-        @tr("OCR · One line"),
-    ];
-    property <[string]> options: root.rows[root.current].is-image ? root.image-options : root.text-options;
+    // An image row lists the same options; everything after "Original" is under an "OCR" caption (see the menu).
+    property <[string]> options: root.text-options;
     // Lists the next page of entries.
     callback show-more();
     callback dismiss();
     callback open-prefs();
-    public function focus-search() { search.focus(); }
+    // Rust asks for this on every show and focus retry: with a dialog open the focus goes to the keys scope instead, so
+    // Escape reaches it and nothing types in the (disabled) search box.
+    public function focus-search() {
+        if (root.settings-open || root.about-open || root.confirm-clear) {
+            keys.focus();
+        } else {
+            search.focus();
+        }
+    }
+
+    // Preferences is an overlay in this window, like in the other apps. Every change applies at once and is saved;
+    // the only button is Close.
+    in-out property <bool> settings-open;
+    // Canonical form ("ctrl+alt+v"), as stored in settings.toml.
+    in-out property <string> hotkey;
+    in-out property <int> max-items: 500;
+    // Index into `languages`; Rust maps it to the language code (LANGUAGES in app.rs, same order).
+    in-out property <int> language;
+    in-out property <bool> autostart;
+    in property <string> version;
+    // 0 none, 1 shortcut not valid, 2 shortcut taken.
+    in-out property <int> error;
+    in-out property <bool> recording-shortcut;
+    // ctrl, alt, shift, super currently held while recording.
+    in-out property <[bool]> held: [false, false, false, false];
+    in-out property <bool> about-open;
+    in-out property <bool> confirm-clear;
+    // Why OCR cannot run: 0 fine, 1 Flatpak without permission, 2 no tesseract, 3 language packs missing (`ocr-missing`).
+    // `ocr-command` is what to run to fix it.
+    in property <int> ocr-state;
+    in property <string> ocr-missing;
+    in property <string> ocr-command;
+    callback set-theme(int);
+    callback set-language(int);
+    callback set-max-items(int);
+    callback set-autostart(bool);
+    callback clear-history();
+    callback quit();
+    callback open-url(string);
+    // True (and `hotkey` set by Rust) when the key press completes a valid shortcut.
+    callback record-key(string, bool, bool, bool, bool) -> bool;
+    pure callback held-text(bool, bool, bool, bool) -> string;
+    property <[string]> languages: [@tr("System"), "English", "Português (Brasil)"];
+    property <[string]> appearances: [@tr("System"), @tr("Light"), @tr("Dark")];
+    public function show-settings() {
+        root.settings-open = true;
+        keys.focus();
+    }
+    function close-overlay() {
+        if (root.about-open) {
+            root.about-open = false;
+        } else if (root.confirm-clear) {
+            root.confirm-clear = false;
+        } else {
+            root.recording-shortcut = false;
+            root.settings-open = false;
+            search.focus();
+        }
+    }
 
     // Height of a text row; only an estimate for the page size and the "near the end" test (see `Row.height`).
     pure function row-height() -> length { return 38px; }
@@ -78,8 +143,23 @@ export component Main inherits Window {
     preferred-width: 600px;
     preferred-height: 450px;
 
-    FocusScope {
+    keys := FocusScope {
         capture-key-pressed(e) => {
+            if (root.recording-shortcut) {
+                root.held = [e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta];
+                if (e.text == Key.Escape || root.record-key(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta)) {
+                    root.recording-shortcut = false;
+                }
+                return accept;
+            }
+            if (root.settings-open || root.about-open || root.confirm-clear) {
+                if (e.text == Key.Escape) {
+                    root.close-overlay();
+                    return accept;
+                }
+                // The rest belongs to the dialog's own widgets, never to the list behind it.
+                return reject;
+            }
             if (root.menu-open) {
                 if (e.text == Key.UpArrow) {
                     root.menu-index = Math.max(0, root.menu-index - 1);
@@ -127,6 +207,19 @@ export component Main inherits Window {
             }
             return reject;
         }
+        capture-key-released(e) => {
+            if (!root.recording-shortcut) {
+                return reject;
+            }
+            // The released modifier may still be set in the event, so clear it by key.
+            root.held = [
+                e.modifiers.control && e.text != Key.Control && e.text != Key.ControlR,
+                e.modifiers.alt && e.text != Key.Alt && e.text != Key.AltGr,
+                e.modifiers.shift && e.text != Key.Shift && e.text != Key.ShiftR,
+                e.modifiers.meta && e.text != Key.Meta && e.text != Key.MetaR,
+            ];
+            return accept;
+        }
 
         VerticalLayout {
             padding: 8px;
@@ -134,8 +227,9 @@ export component Main inherits Window {
 
             HorizontalLayout {
                 spacing: 6px;
-                search := LineEdit {
-                    placeholder-text: @tr("Search…");
+                search := SearchBox {
+                    enabled: !(root.settings-open || root.about-open || root.confirm-clear);
+                    placeholder: @tr("Search…");
                     text <=> root.query;
                     edited(t) => {
                         root.current = 0;
@@ -143,33 +237,22 @@ export component Main inherits Window {
                         root.query-changed(t);
                     }
                 }
-                // A plain Button keeps the native hover/pressed look; the icon is drawn on top (a Path takes no
-                // input, so clicks reach the button) and follows the theme.
                 Rectangle {
                     // Fixed (the search field's height): `self.height` made a binding loop with the wrapping empty text.
                     width: 32px;
-                    Button {
-                        width: 100%;
-                        height: 100%;
-                        accessible-label: @tr("Preferences");
+                    MenuButton {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        label: @tr("Preferences");
+                        // Rust fills the dialog and calls show-settings().
                         clicked => { root.open-prefs(); }
-                    }
-                    Path {
-                        width: 16px;
-                        height: 14px;
-                        viewbox-width: 16;
-                        viewbox-height: 14;
-                        commands: "M 1 1 L 15 1 M 1 7 L 15 7 M 1 13 L 15 13";
-                        stroke: Palette.foreground;
-                        stroke-width: 2px;
-                        stroke-line-cap: round;
                     }
                 }
             }
 
             if root.rows.length == 0: Text {
                 text: root.query == "" ? @tr("Copy some text or an image and it shows up here.") : @tr("No matches");
-                color: Palette.foreground.with-alpha(0.6);
+                color: Family.muted;
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 wrap: word-wrap;
@@ -191,7 +274,7 @@ export component Main inherits Window {
                     height: row.height;
                     border-radius: 6px;
                     // Three levels: hover (faint), selected (accent tint), and the solid bar below.
-                    background: i == root.current ? Palette.accent-background.with-alpha(0.22)
+                    background: i == root.current ? Family.selected
                         : row-touch.has-hover ? Palette.foreground.with-alpha(0.06) : transparent;
                     // The accent bar is what marks the selected row; the rest of the UI stays neutral.
                     if i == root.current: Rectangle {
@@ -246,8 +329,8 @@ export component Main inherits Window {
 
             Text {
                 text: @tr("Enter paste · Shift+Enter options · PgUp/PgDn page · Alt+D delete");
-                color: Palette.foreground.with-alpha(0.5);
-                font-size: 11px;
+                color: Family.muted;
+                font-size: Family.caption;
                 overflow: elide;
             }
         }
@@ -260,7 +343,7 @@ export component Main inherits Window {
             property <length> below: self.row-top + root.rows[root.current].height + 2px;
             y: max(4px, min(parent.height - self.height - 4px,
                 self.below + self.height + 4px <= parent.height ? self.below : self.row-top - self.height - 2px));
-            height: root.options.length * 30px + 10px;
+            height: root.options.length * 30px + 10px + (root.rows[root.current].is-image ? 22px : 0px);
             background: Palette.alternate-background;
             border-radius: 8px;
             border-width: 1px;
@@ -270,269 +353,233 @@ export component Main inherits Window {
             drop-shadow-offset-y: 3px;
             VerticalLayout {
                 padding: 4px;
-                for option[i] in root.options: Rectangle {
-                    property <bool> unavailable: i >= 1 && root.rows[root.current].is-image && !root.ocr-ready;
-                    height: 30px;
-                    border-radius: 4px;
-                    // Hover moves the highlight, so only one item is ever lit.
-                    background: i == root.menu-index ? Palette.accent-background.with-alpha(0.22) : transparent;
-                    Text {
-                        x: 10px;
-                        text: option;
-                        color: Palette.foreground.with-alpha(unavailable ? 0.45 : 1.0);
-                        vertical-alignment: center;
+                for option[i] in root.options: VerticalLayout {
+                    if i == 1 && root.rows[root.current].is-image: Rectangle {
+                        height: 22px;
+                        Text {
+                            x: 10px;
+                            text: @tr("Text in the image (OCR)");
+                            color: Family.muted;
+                            font-size: Family.caption;
+                            vertical-alignment: center;
+                        }
                     }
-                    option-touch := TouchArea {
-                        changed has-hover => {
-                            if (self.has-hover) {
-                                root.menu-index = i;
+                    Rectangle {
+                        property <bool> unavailable: i >= 1 && root.rows[root.current].is-image && !root.ocr-ready;
+                        height: 30px;
+                        border-radius: 4px;
+                        // Hover moves the highlight, so only one item is ever lit.
+                        background: i == root.menu-index ? Family.selected : transparent;
+                        Text {
+                            x: 10px;
+                            text: option;
+                            color: Palette.foreground.with-alpha(unavailable ? 0.45 : 1.0);
+                            vertical-alignment: center;
+                        }
+                        option-touch := TouchArea {
+                            changed has-hover => {
+                                if (self.has-hover) {
+                                    root.menu-index = i;
+                                }
+                            }
+                            clicked => {
+                                root.menu-open = false;
+                                root.choose(root.current, i);
                             }
                         }
-                        clicked => {
-                            root.menu-open = false;
-                            root.choose(root.current, i);
+                    }
+                }
+            }
+        }
+        if root.settings-open: Rectangle {
+            background: Family.scrim;
+            TouchArea { clicked => { root.close-overlay(); } }
+            Rectangle {
+                width: min(root.width - 40px, Family.dialog-width);
+                height: min(root.height - 20px, 560px);
+                background: Palette.background;
+                border-radius: Family.radius;
+                border-width: 1px;
+                border-color: Palette.border;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: Family.gap-l;
+                    Text { text: @tr("Preferences"); font-size: Family.page-title; font-weight: Family.page-weight; }
+                    // The rows scroll, the footer stays: the popup can be as small as 356x300.
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            // `start`, or a card taller than its rows stretches every row (the fields grew to 36 px).
+                            alignment: start;
+                            spacing: Family.gap-l;
+                            // A row is the label on the left and the control on the right; a hint or an error goes right under its row.
+                            PrefRow {
+                                label: @tr("Appearance");
+                                ComboBox {
+                                    width: Family.control-width;
+                                    model: root.appearances;
+                                    current-index: root.color-scheme-index;
+                                    selected => { root.set-theme(self.current-index); }
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: Family.gap-s;
+                                PrefRow {
+                                    label: @tr("Language");
+                                    ComboBox {
+                                        width: Family.control-width;
+                                        model: root.languages;
+                                        current-index: root.language;
+                                        selected => { root.set-language(self.current-index); }
+                                    }
+                                }
+                                Text {
+                                    text: @tr("Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed.");
+                                    wrap: word-wrap;
+                                    font-size: Family.caption;
+                                    color: Family.muted;
+                                }
+                            }
+                            VerticalLayout {
+                                spacing: Family.gap-s;
+                                PrefRow {
+                                    label: @tr("Shortcut");
+                                    Button {
+                                        width: Family.control-width;
+                                        text: root.recording-shortcut ? root.held-text(root.held[0], root.held[1], root.held[2], root.held[3]) : root.hotkey;
+                                        clicked => { root.held = [false, false, false, false]; root.recording-shortcut = true; keys.focus(); }
+                                    }
+                                }
+                                if root.error == 1 || root.error == 2: HorizontalLayout {
+                                    spacing: 6px;
+                                    VerticalLayout { alignment: start; padding-top: 1px; AlertIcon { tone: Family.danger; } }
+                                    Text {
+                                        wrap: word-wrap;
+                                        color: Family.danger;
+                                        horizontal-stretch: 1;
+                                        text: root.error == 1 ? @tr("Use modifiers and one letter or digit, like Ctrl+Alt+V.")
+                                            : @tr("That shortcut is already in use by another program.");
+                                    }
+                                }
+                            }
+                            PrefRow {
+                                label: @tr("Entries kept");
+                                SpinBox {
+                                    width: Family.control-width;
+                                    minimum: 10;
+                                    maximum: 5000;
+                                    value: root.max-items;
+                                    edited(v) => { root.set-max-items(v); }
+                                }
+                            }
+                            if root.ocr-state != 0: VerticalLayout {
+                                spacing: 6px;
+                                Text {
+                                    wrap: word-wrap;
+                                    color: Family.warning;
+                                    text: root.ocr-state == 1 ? @tr("OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):")
+                                        : root.ocr-state == 2 ? @tr("OCR needs tesseract, which is not installed. Install it, with English, then see the help page.")
+                                        : @tr("OCR languages not installed: {}. Install them, then see the help page.", root.ocr-missing);
+                                }
+                                // Read-only TextInput: the command can be selected and copied.
+                                if root.ocr-command != "": TextInput {
+                                    text: root.ocr-command;
+                                    read-only: true;
+                                    wrap: word-wrap;
+                                    font-family: "monospace";
+                                    color: Palette.foreground;
+                                }
+                                HorizontalLayout {
+                                    alignment: start;
+                                    Button {
+                                        text: @tr("Help page");
+                                        clicked => { root.open-url("https://github.com/evandro777/FastPaste/blob/master/BUILD.md#text-from-an-image-ocr"); }
+                                    }
+                                }
+                            }
+                            PrefRow {
+                                label: @tr("Start at login");
+                                Switch {
+                                    checked: root.autostart;
+                                    toggled => { root.set-autostart(self.checked); }
+                                }
+                            }
+                            PrefRow {
+                                label: @tr("Clipboard history");
+                                Button { width: Family.control-width; text: @tr("Clear history…"); clicked => { root.confirm-clear = true; } }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button { text: @tr("Quit FastPaste"); clicked => { root.quit(); } }
+                        Button { text: @tr("About"); clicked => { root.about-open = true; } }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button { text: @tr("Close"); primary: true; clicked => { root.close-overlay(); } }
+                    }
+                }
+            }
+        }
+
+        if root.confirm-clear: Rectangle {
+            background: Family.scrim;
+            TouchArea { clicked => { root.confirm-clear = false; } }
+            Rectangle {
+                width: min(root.width - 40px, 340px);
+                height: min(root.height - 20px, 190px);
+                background: Palette.background;
+                border-radius: Family.radius;
+                border-width: 1px;
+                border-color: Palette.border;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 10px;
+                    alignment: center;
+                    Text { text: @tr("Clear history?"); font-size: Family.title; font-weight: Family.section-weight; horizontal-alignment: center; }
+                    Text {
+                        text: @tr("Every copied text and image will be deleted. This cannot be undone.");
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: center;
+                        Button { text: @tr("Cancel"); clicked => { root.confirm-clear = false; } }
+                        Button {
+                            text: @tr("Clear history");
+                            primary: true;
+                            clicked => { root.confirm-clear = false; root.clear-history(); }
                         }
                     }
                 }
             }
         }
-    }
-}
 
-// Opened from the burger button, the tray ("Preferences…") or `fastpaste --prefs`. Save applies the shortcut, the entry
-// cap and the language at once; the switch and "Clear history" act immediately.
-export component Preferences inherits Window {
-    title: @tr("FastPaste preferences");
-    preferred-width: 440px;
-    preferred-height: 470px;
-    // Canonical form ("ctrl+alt+v"), as stored in settings.toml.
-    in-out property <string> hotkey;
-    in-out property <string> max-items;
-    // Index into `languages`; Rust maps it to the language code (LANGUAGES in app.rs, same order).
-    in-out property <int> language;
-    in-out property <bool> autostart;
-    in property <string> version;
-    // 0 none, 1 shortcut not valid, 2 shortcut taken, 3 entry cap out of range.
-    in-out property <int> error;
-    in-out property <bool> recording-shortcut;
-    // ctrl, alt, shift, super currently held while recording.
-    in-out property <[bool]> held: [false, false, false, false];
-    in-out property <bool> about-open;
-    in-out property <bool> confirm-clear;
-    // Why OCR cannot run: 0 fine, 1 Flatpak without permission, 2 no tesseract, 3 language packs missing (`ocr-missing`).
-    // `ocr-command` is what to run to fix it.
-    in property <int> ocr-state;
-    in property <string> ocr-missing;
-    in property <string> ocr-command;
-    // Returns the error code, 0 when saved.
-    callback save(string, string, int) -> int;
-    callback cancel();
-    callback set-autostart(bool);
-    callback clear-history();
-    callback quit();
-    callback open-url(string);
-    // True (and `hotkey` set by Rust) when the key press completes a valid shortcut.
-    callback record-key(string, bool, bool, bool, bool) -> bool;
-    pure callback held-text(bool, bool, bool, bool) -> string;
-    property <[string]> languages: [@tr("System"), "English", "Português (Brasil)"];
-
-    FocusScope {
-        capture-key-pressed(e) => {
-            if (!root.recording-shortcut) {
-                // Escape closes whichever overlay is open.
-                if (e.text == Key.Escape && (root.about-open || root.confirm-clear)) {
-                    root.about-open = false;
-                    root.confirm-clear = false;
-                    return accept;
-                }
-                return reject;
-            }
-            root.held = [e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta];
-            if (e.text == Key.Escape || root.record-key(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta)) {
-                root.recording-shortcut = false;
-            }
-            return accept;
-        }
-        capture-key-released(e) => {
-            if (!root.recording-shortcut) {
-                return reject;
-            }
-            // The released modifier may still be set in the event, so clear it by key.
-            root.held = [
-                e.modifiers.control && e.text != Key.Control && e.text != Key.ControlR,
-                e.modifiers.alt && e.text != Key.Alt && e.text != Key.AltGr,
-                e.modifiers.shift && e.text != Key.Shift && e.text != Key.ShiftR,
-                e.modifiers.meta && e.text != Key.Meta && e.text != Key.MetaR,
-            ];
-            return accept;
-        }
-
-        VerticalLayout {
-            padding: 16px;
-            spacing: 16px;
-            // Label and field are one group (4px apart); groups are 16px apart.
-            VerticalLayout {
-                spacing: 4px;
-                Text { text: @tr("Shortcut"); }
-                Button {
-                    text: root.recording-shortcut ? root.held-text(root.held[0], root.held[1], root.held[2], root.held[3]) : root.hotkey;
-                    clicked => { root.held = [false, false, false, false]; root.recording-shortcut = true; }
-                }
-                if root.error == 1 || root.error == 2: Text {
-                    wrap: word-wrap;
-                    color: #e5484d;
-                    text: root.error == 1 ? @tr("Use modifiers and one letter or digit, like ctrl+alt+v.")
-                        : @tr("That shortcut is already in use by another program.");
-                }
-            }
-            VerticalLayout {
-                spacing: 4px;
-                Text { text: @tr("Entries kept"); }
-                LineEdit { text <=> root.max-items; placeholder-text: "500"; input-type: InputType.number; }
-                if root.error == 3: Text {
-                    wrap: word-wrap;
-                    color: #e5484d;
-                    text: @tr("Entries kept must be a number from 10 to 5000.");
-                }
-            }
-            VerticalLayout {
-                spacing: 4px;
-                Text { text: @tr("Language"); }
-                ComboBox { model: root.languages; current-index <=> root.language; }
-                Text {
-                    text: @tr("Also used to read text from images (OCR): this language first, then English, if their tesseract packs are installed.");
-                    wrap: word-wrap;
-                    color: Palette.foreground.with-alpha(0.6);
-                }
-            }
-            if root.ocr-state != 0: VerticalLayout {
-                spacing: 6px;
-                Text {
-                    wrap: word-wrap;
-                    color: #e5a50a;
-                    text: root.ocr-state == 1 ? @tr("OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):")
-                        : root.ocr-state == 2 ? @tr("OCR needs tesseract, which is not installed. Install it, with English, then see the help page.")
-                        : @tr("OCR languages not installed: {}. Install them, then see the help page.", root.ocr-missing);
-                }
-                // Read-only TextInput: the command can be selected and copied.
-                if root.ocr-command != "": TextInput {
-                    text: root.ocr-command;
-                    read-only: true;
-                    wrap: word-wrap;
-                    font-family: "monospace";
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    Button {
-                        text: @tr("Help page");
-                        clicked => { root.open-url("https://github.com/evandro777/FastPaste/blob/master/BUILD.md#text-from-an-image-ocr"); }
+        if root.about-open: Rectangle {
+            background: Family.scrim;
+            TouchArea { clicked => { root.about-open = false; } }
+            Rectangle {
+                width: min(root.width - 40px, Family.dialog-width);
+                height: min(root.height - 20px, about-box.preferred-height);
+                background: Palette.background;
+                border-radius: Family.radius;
+                border-width: 1px;
+                border-color: Palette.border;
+                TouchArea { }
+                about-box := VerticalLayout {
+                    padding: 16px;
+                    AboutCard {
+                        icon: @image-url("../../../packaging/io.github.evandro777.FastPaste.png");
+                        name: "FastPaste";
+                        version: root.version;
+                        description: @tr("Light and fast clipboard history for Linux.");
+                        url: "github.com/evandro777/FastPaste";
+                        link-clicked(u) => { root.open-url(u); }
+                        close => { root.about-open = false; }
                     }
                 }
-            }
-            HorizontalLayout {
-                spacing: 12px;
-                Text { text: @tr("Start at login"); vertical-alignment: center; horizontal-stretch: 1; }
-                Switch {
-                    checked: root.autostart;
-                    toggled => { root.set-autostart(self.checked); }
-                }
-            }
-            HorizontalLayout {
-                spacing: 12px;
-                Text { text: @tr("Clipboard history"); vertical-alignment: center; horizontal-stretch: 1; }
-                Button { text: @tr("Clear history…"); clicked => { root.confirm-clear = true; } }
-            }
-            // Pushes the buttons to the bottom edge, like a dialog.
-            Rectangle { vertical-stretch: 1; }
-            Rectangle { height: 1px; background: Palette.border; }
-            HorizontalLayout {
-                spacing: 8px;
-                Button { text: @tr("Quit FastPaste"); clicked => { root.quit(); } }
-                Button { text: @tr("About"); clicked => { root.about-open = true; } }
-                Rectangle { horizontal-stretch: 1; }
-                Button { text: @tr("Cancel"); clicked => { root.recording-shortcut = false; root.cancel(); } }
-                Button {
-                    text: @tr("Save");
-                    primary: true;
-                    clicked => { root.error = root.save(root.hotkey, root.max-items, root.language); }
-                }
-            }
-        }
-    }
-
-    if root.confirm-clear: Rectangle {
-        background: #0008;
-        TouchArea { clicked => { root.confirm-clear = false; } }
-        Rectangle {
-            width: min(root.width - 40px, 340px);
-            height: min(root.height - 20px, 190px);
-            background: Palette.background;
-            border-radius: 10px;
-            border-width: 1px;
-            border-color: Palette.border;
-            TouchArea { }
-            VerticalLayout {
-                padding: 18px;
-                spacing: 10px;
-                alignment: center;
-                Text { text: @tr("Clear history?"); font-size: 16px; font-weight: 700; horizontal-alignment: center; }
-                Text {
-                    text: @tr("Every copied text and image will be deleted. This cannot be undone.");
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
-                HorizontalLayout {
-                    spacing: 8px;
-                    alignment: center;
-                    Button { text: @tr("Cancel"); clicked => { root.confirm-clear = false; } }
-                    Button {
-                        text: @tr("Clear history");
-                        primary: true;
-                        clicked => { root.confirm-clear = false; root.clear-history(); }
-                    }
-                }
-            }
-        }
-    }
-
-    if root.about-open: Rectangle {
-        background: #0008;
-        TouchArea { clicked => { root.about-open = false; } }
-        Rectangle {
-            width: min(root.width - 40px, 320px);
-            height: min(root.height - 20px, 290px);
-            background: Palette.background;
-            border-radius: 10px;
-            border-width: 1px;
-            border-color: Palette.border;
-            TouchArea { }
-            VerticalLayout {
-                padding: 18px;
-                spacing: 8px;
-                alignment: center;
-                HorizontalLayout {
-                    alignment: center;
-                    Image {
-                        source: @image-url("../../../packaging/io.github.evandro777.FastPaste.png");
-                        width: 48px;
-                        height: 48px;
-                    }
-                }
-                Text { text: "FastPaste"; font-size: 20px; font-weight: 700; horizontal-alignment: center; }
-                Text { text: @tr("Version {}", root.version); horizontal-alignment: center; }
-                Text { text: @tr("Light and fast clipboard history for Linux."); horizontal-alignment: center; wrap: word-wrap; }
-                Text { text: @tr("Author: {}", "evandro777"); horizontal-alignment: center; }
-                Text { text: @tr("License: {}", "GPL-3.0-or-later"); horizontal-alignment: center; }
-                Text {
-                    text: "github.com/evandro777/FastPaste";
-                    horizontal-alignment: center;
-                    color: Palette.accent-background;
-                    TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.open-url("https://github.com/evandro777/FastPaste"); }
-                    }
-                }
-                Button { text: @tr("Close"); primary: true; clicked => { root.about-open = false; } }
             }
         }
     }

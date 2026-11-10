@@ -2,7 +2,7 @@
 //! one or many rows without reading the real history or clipboard.
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
-use crate::{Main, Preferences, Row, Tr};
+use crate::{Main, Row, Tr};
 
 /// 0 empty, 1 single, 2 many; `None` when the variable is unset or unknown.
 pub fn mode() -> Option<usize> {
@@ -14,7 +14,7 @@ pub fn mode() -> Option<usize> {
     }
 }
 
-/// `FASTPASTE_PAGE`: 0 the popup (default), 1 the preferences window.
+/// `FASTPASTE_PAGE`: 0 the popup (default), 1 the preferences over it.
 pub fn page() -> usize {
     std::env::var("FASTPASTE_PAGE")
         .ok()
@@ -33,21 +33,19 @@ fn ocr_status() -> crate::ocr::Status {
     }
 }
 
-/// The preferences window; the three modes show the defaults, Portuguese selected, and an error message.
-pub fn prefs(mode: usize) -> Preferences {
-    let win = Preferences::new().unwrap();
-    win.set_hotkey("ctrl+alt+v".into());
-    win.set_max_items(if mode == 2 { "99999" } else { "500" }.into());
-    win.set_language(if mode == 1 { 2 } else { 0 });
-    win.set_error(if mode == 2 { 3 } else { 0 });
-    win.set_autostart(mode == 1);
-    win.set_version(env!("CARGO_PKG_VERSION").into());
-    crate::app::fill_ocr(&win, &ocr_status());
-    // The overlays are part of the snapshots: the clear-history warning (single) and the About screen (many).
-    win.set_confirm_clear(mode == 1);
-    win.set_about_open(mode == 2);
-    win.show().unwrap();
-    win
+/// Preferences over the popup; the three modes show the defaults, Portuguese selected with the clear-history question,
+/// and the shortcut-taken error. `FASTPASTE_ABOUT=1` puts the About card on top.
+fn prefs(ui: &Main, mode: usize) {
+    ui.set_settings_open(true);
+    ui.set_hotkey("Ctrl+Alt+V".into());
+    ui.set_max_items(500);
+    ui.set_language(if mode == 1 { 2 } else { 0 });
+    ui.set_error(if mode == 2 { 2 } else { 0 });
+    ui.set_autostart(mode == 1);
+    ui.set_version(env!("CARGO_PKG_VERSION").into());
+    crate::app::fill_ocr(ui, &ocr_status());
+    ui.set_confirm_clear(mode == 1);
+    ui.set_about_open(std::env::var("FASTPASTE_ABOUT").is_ok_and(|v| v == "1"));
 }
 
 const TEXTS: [&str; 12] = [
@@ -116,7 +114,10 @@ pub fn apply(ui: &Main, mode: usize) {
     ui.set_current(if mode == 2 { 1 } else { 0 });
     // The "Show all" button is part of the "many" snapshot.
     ui.set_hidden(if mode == 2 { 30 } else { 0 });
-    // The Shift+Enter menu is part of the "many" snapshot.
-    ui.set_menu_open(mode == 2);
+    // The Shift+Enter menu is part of the "many" snapshot of the popup.
+    ui.set_menu_open(mode == 2 && page() == 0);
     ui.set_ocr_ready(ocr_status() == crate::ocr::Status::Ready);
+    if page() == 1 {
+        prefs(ui, mode);
+    }
 }

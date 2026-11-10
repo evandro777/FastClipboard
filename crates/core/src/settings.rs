@@ -1,12 +1,9 @@
 //! User settings in one TOML file under the XDG data dir (`~/.local/share/FastPaste`).
-use std::{
-    fs,
-    io::{self, Write},
-    os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt},
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+
+use crate::files::{read_or_backup, write_atomic};
 
 /// Folder name under the XDG data dir.
 pub const APP_DIR: &str = "FastPaste";
@@ -16,14 +13,6 @@ pub const MAX_SIZE: u32 = 8192;
 
 /// Range of `max_items`, for the preferences and for a hand-edited file. Beyond it the whole-file history rewrite is slow.
 pub const MAX_ITEMS_RANGE: std::ops::RangeInclusive<usize> = 10..=5000;
-
-/// `<file>.bad.<unix time>`: where an unreadable file is kept, so a second one never overwrites the first backup.
-pub(crate) fn backup_path(path: &Path) -> PathBuf {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    path.with_extension(format!("toml.bad.{secs}"))
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)] // older files keep loading when a field is added
@@ -39,6 +28,8 @@ pub struct Settings {
     /// Tesseract languages for "Text from image", joined with `+` (e.g. "eng+por"); needs the language packs installed.
     /// "" = English plus the interface language, when its pack is installed.
     pub ocr_lang: String,
+    /// "" follows the system's light or dark mode; otherwise "light" or "dark".
+    pub theme: String,
 }
 
 impl Default for Settings {
@@ -50,6 +41,7 @@ impl Default for Settings {
             max_items: 500,
             hotkey: "ctrl+alt+v".into(),
             ocr_lang: String::new(),
+            theme: String::new(),
         }
     }
 }
@@ -71,40 +63,13 @@ fn path() -> PathBuf {
     data_dir().join("settings.toml")
 }
 
-/// Creates `dir` (and parents) readable only by the user, and tightens one made by an older version (0755): the
-/// history holds everything that was copied, passwords included.
-pub(crate) fn create_private_dir(dir: &Path) -> io::Result<()> {
-    fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
-    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
-}
-
-/// Writes `data` to a file only the user can read. The mode is also set on an existing file (a leftover `.tmp`).
-pub(crate) fn write_private(path: &Path, data: impl AsRef<[u8]>) -> io::Result<()> {
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    file.set_permissions(fs::Permissions::from_mode(0o600))?;
-    file.write_all(data.as_ref())
-}
-
 impl Settings {
     pub fn load() -> Self {
-        let mut s = match fs::read_to_string(path()) {
-            Ok(text) => parse(&text).unwrap_or_else(|e| {
-                // The file is hand-edited; the next save() must not overwrite what the user wrote.
-                let bad = backup_path(&path());
-                eprintln!(
-                    "settings.toml is invalid ({e}); kept as {}, using defaults",
-                    bad.display()
-                );
-                let _ = fs::rename(path(), bad);
-                Settings::default()
-            }),
-            Err(_) => Settings::default(),
-        };
+        Self::load_from(&path())
+    }
+
+    fn load_from(path: &Path) -> Self {
+        let mut s = read_or_backup(path, |text| parse(text).map_err(|e| e.to_string())).0;
         s.normalize();
         s
     }
@@ -124,17 +89,15 @@ impl Settings {
     }
 
     fn try_save(&self) -> std::io::Result<()> {
-        let dir = data_dir();
-        create_private_dir(&dir)?;
         let text = toml::to_string_pretty(self).map_err(std::io::Error::other)?;
-        let tmp = dir.join("settings.toml.tmp");
-        write_private(&tmp, text)?;
-        fs::rename(&tmp, path())
+        write_atomic(&path(), text)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
 
     #[test]
@@ -153,19 +116,30 @@ mod tests {
     }
 
     #[test]
-    fn private_dir_and_file_are_tightened() {
-        let root = std::env::temp_dir().join(format!("fastpaste-perm-{}", std::process::id()));
-        let dir = root.join("data");
+    fn unreadable_or_invalid_files_are_kept_as_a_backup() {
+        let dir = std::env::temp_dir().join(format!("fastpaste-load-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
-        let file = dir.join("x.tmp");
-        fs::write(&file, "old").unwrap(); // 0644 leftover
-        create_private_dir(&dir).unwrap();
-        write_private(&file, "new").unwrap();
-        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
-        assert_eq!((mode(&dir), mode(&file)), (0o700, 0o600));
-        assert_eq!(fs::read_to_string(&file).unwrap(), "new");
-        let _ = fs::remove_dir_all(root);
+        let file = dir.join("settings.toml");
+        let backups = || {
+            fs::read_dir(&dir)
+                .unwrap()
+                .flatten()
+                .filter(|e| e.file_name().to_string_lossy().contains(".bad."))
+                .count()
+        };
+        assert_eq!(
+            Settings::load_from(&file).width,
+            600,
+            "missing file: defaults, no backup"
+        );
+        assert_eq!(backups(), 0);
+        fs::write(&file, [0xff, 0xfe, b'w']).unwrap(); // not UTF-8, as a Latin-1 editor would save it
+        assert_eq!(Settings::load_from(&file).width, 600);
+        assert!(!file.exists(), "moved aside, so the next save() cannot overwrite it");
+        assert_eq!(backups(), 1);
+        fs::write(&file, "width = 700").unwrap();
+        assert_eq!(Settings::load_from(&file).width, 700, "a good file still loads");
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -180,8 +154,16 @@ mod tests {
             s.normalize();
             assert_eq!(s.max_items, want);
         }
-        let name = backup_path(Path::new("/x/history.toml"));
+        let name = crate::files::backup_path(Path::new("/x/history.toml"));
         assert!(name.to_string_lossy().starts_with("/x/history.toml.bad."));
+    }
+
+    #[test]
+    fn theme_defaults_to_the_system_and_loads_from_a_file() {
+        let old: Settings = toml::from_str("width = 700").unwrap();
+        assert_eq!(old.theme, "", "files from before the option still load");
+        let dark: Settings = toml::from_str("theme = \"dark\"").unwrap();
+        assert_eq!(dark.theme, "dark");
     }
 
     #[test]

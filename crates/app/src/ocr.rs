@@ -1,9 +1,62 @@
 //! Text from an image through the `tesseract` command (optional, found on PATH). Shelling out keeps the C libraries and
 //! the language models out of this app; the process only exists during the call.
 use std::{
-    io::Write,
-    process::{Command, Stdio},
+    io::{self, Read, Write},
+    process::{Command, Output, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
+
+/// A hung tesseract (or a host call waiting on a portal) must not block the worker, or `ocr_checking`, forever.
+const TIMEOUT: Duration = Duration::from_secs(30);
+/// Reads a pipe to its end on a thread, so a full pipe never stalls the child.
+fn drain(pipe: Option<impl Read + Send + 'static>) -> thread::JoinHandle<Vec<u8>> {
+    thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut p) = pipe {
+            let _ = p.read_to_end(&mut buf);
+        }
+        buf
+    })
+}
+
+/// Runs `cmd` with `input` on stdin and kills it after `timeout`. Also returns the result of writing the input.
+/// Polls `try_wait` (std has no wait with a timeout); the 50 ms step is nothing next to tesseract's seconds.
+fn run(cmd: &mut Command, input: &[u8], timeout: Duration) -> io::Result<(Output, io::Result<()>)> {
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let stdin = child.stdin.take();
+    let input = input.to_vec();
+    // tesseract reads the whole image before it prints anything, but the pipes are drained on threads anyway.
+    let writer = thread::spawn(move || stdin.map_or(Ok(()), |mut s| s.write_all(&input)));
+    let out = drain(child.stdout.take());
+    let err = drain(child.stderr.take());
+    let start = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if start.elapsed() > timeout {
+            // The reader threads are left to end on their own: a grandchild may still hold the pipes.
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "timed out"));
+        }
+        thread::sleep(Duration::from_millis(50));
+    };
+    let written = writer
+        .join()
+        .unwrap_or_else(|_| Err(io::Error::other("writer thread panicked")));
+    let output = Output {
+        status,
+        stdout: out.join().unwrap_or_default(),
+        stderr: err.join().unwrap_or_default(),
+    };
+    Ok((output, written))
+}
 
 /// `-l` takes language codes joined with `+` ("eng+por"). Anything else would be read as another tesseract option.
 fn valid_lang(lang: &str) -> bool {
@@ -27,11 +80,9 @@ fn tesseract() -> Command {
 
 /// Language packs `tesseract --list-langs` reports; `None` when tesseract cannot run (not found, or no permission).
 fn installed() -> Option<Vec<String>> {
-    let out = tesseract()
-        .arg("--list-langs")
-        .output()
+    let (out, _) = run(tesseract().arg("--list-langs"), &[], TIMEOUT)
         .ok()
-        .filter(|o| o.status.success())?;
+        .filter(|(o, _)| o.status.success())?;
     Some(
         String::from_utf8_lossy(&out.stdout)
             .lines()
@@ -89,10 +140,8 @@ pub fn status(ocr_lang: &str, ui_lang: &str) -> Status {
         // Without the permission flatpak-spawn fails at once, just as it does for a missing host tesseract; a command
         // that always exists tells the two apart.
         let host_ok = !crate::autostart::in_flatpak()
-            || Command::new("flatpak-spawn")
-                .args(["--host", "true"])
-                .output()
-                .is_ok_and(|o| o.status.success());
+            || run(Command::new("flatpak-spawn").args(["--host", "true"]), &[], TIMEOUT)
+                .is_ok_and(|(o, _)| o.status.success());
         return if host_ok {
             Status::NoTesseract
         } else {
@@ -151,16 +200,8 @@ pub fn extract(png: &[u8], lang: &str) -> Result<String, String> {
     if !valid_lang(lang) {
         return Err(format!("ocr_lang \"{lang}\" is not like \"eng+por\""));
     }
-    let mut child = tesseract()
-        .args(["stdin", "stdout", "-l", lang])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+    let (out, written) = run(tesseract().args(["stdin", "stdout", "-l", lang]), png, TIMEOUT)
         .map_err(|e| format!("cannot run tesseract (is it installed?): {e}"))?;
-    // tesseract reads the whole image before it prints anything, so writing first cannot deadlock.
-    let written = child.stdin.take().map(|mut stdin| stdin.write_all(png));
-    let out = child.wait_with_output().map_err(|e| e.to_string())?;
     if !out.status.success() {
         let why = String::from_utf8_lossy(&out.stderr);
         let hint = if crate::autostart::in_flatpak() {
@@ -170,7 +211,7 @@ pub fn extract(png: &[u8], lang: &str) -> Result<String, String> {
         };
         return Err(format!("tesseract failed: {}{hint}", why.trim()));
     }
-    if let Some(Err(e)) = written {
+    if let Err(e) = written {
         return Err(format!("cannot send the image to tesseract: {e}"));
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
@@ -178,7 +219,26 @@ pub fn extract(png: &[u8], lang: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Status, classify, pick_langs, valid_lang};
+    use super::{Status, classify, pick_langs, run, valid_lang};
+    use std::{io::ErrorKind, process::Command, time::Duration};
+
+    #[test]
+    fn run_feeds_stdin_and_collects_the_output() {
+        let (out, written) = run(&mut Command::new("cat"), b"hello", Duration::from_secs(10)).unwrap();
+        assert!(out.status.success() && written.is_ok());
+        assert_eq!(out.stdout, b"hello");
+    }
+
+    #[test]
+    fn run_kills_a_hung_process() {
+        let started = std::time::Instant::now();
+        let err = run(Command::new("sleep").arg("5"), &[], Duration::from_millis(100)).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::TimedOut);
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "returned at the timeout, not at the exit"
+        );
+    }
 
     #[test]
     fn languages_follow_the_ui_language_when_installed() {

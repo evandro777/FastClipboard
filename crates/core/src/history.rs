@@ -5,7 +5,7 @@ use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{create_private_dir, write_private};
+use crate::files::{create_private_dir, read_or_backup, write_atomic, write_private};
 
 /// A single huge copy (a log, a base64 blob) would make every save slow and the list useless.
 pub const MAX_ITEM_BYTES: usize = 1 << 20;
@@ -105,25 +105,8 @@ fn contains_ci(hay: &str, needle: &str) -> bool {
 impl History {
     pub fn load() -> Self {
         // shortcut: whole-file rewrite on every copy, fine for a few hundred items; move to SQLite beyond ~5k.
-        let read = fs::read_to_string(path());
-        let mut sweep = read.is_ok();
-        // A file that cannot be read (bad UTF-8, I/O error, permissions) is kept like a corrupt one: treated as
-        // missing, the next save would overwrite it.
-        let parsed = match read {
-            Ok(text) => toml::from_str(&text).map_err(|e| e.to_string()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(History::default()),
-            Err(e) => Err(e.to_string()),
-        };
-        let mut history = parsed.unwrap_or_else(|e| {
-            let bad = crate::settings::backup_path(&path());
-            eprintln!(
-                "history.toml is invalid ({e}); kept as {}, starting empty",
-                bad.display()
-            );
-            let _ = fs::rename(path(), bad);
-            sweep = false;
-            History::default()
-        });
+        let (mut history, sweep): (History, bool) =
+            read_or_backup(&path(), |text| toml::from_str(text).map_err(|e| e.to_string()));
         history.dir = images_dir();
         // An older or hand-edited file may exceed the budget; apply it now so the list in RAM is bounded too.
         history.truncate(usize::MAX);
@@ -322,11 +305,7 @@ impl History {
     }
 
     fn try_save(&self) -> std::io::Result<()> {
-        let p = path();
-        create_private_dir(p.parent().unwrap_or(&p))?;
-        let tmp = p.with_extension("toml.tmp");
-        write_private(&tmp, toml::to_string(self).map_err(std::io::Error::other)?)?;
-        fs::rename(&tmp, p)
+        write_atomic(&path(), toml::to_string(self).map_err(std::io::Error::other)?)
     }
 }
 

@@ -70,11 +70,12 @@ appimage/build.sh             # needs appimagetool on PATH; writes FastPaste-<ve
 
 ## Settings and data
 
-**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the shortcut (click it and press the new keys), the number of entries kept and the language, and applies them on Save without a restart. A shortcut that another program already holds is refused. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the desktop through the Background portal, or writes `~/.config/autostart/io.github.evandro777.FastPaste.desktop` itself when the optional `--filesystem=xdg-config/autostart` override is set), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
+**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the appearance (follow the system, light or dark), the shortcut (click it and press the new keys), the number of entries kept and the language, and applies each change at once, without a restart (the only button is Close). A shortcut that another program already holds is refused and the old one stays. The popup stays open while Preferences or About is open, even if you click another window. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the desktop through the Background portal, or writes `~/.config/autostart/io.github.evandro777.FastPaste.desktop` itself when the optional `--filesystem=xdg-config/autostart` override is set), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
 
 - `hotkey`: modifiers (`ctrl`, `alt`, `shift`, `super`) plus one letter or digit, default `"ctrl+alt+v"`.
 - `max_items`: how many entries are kept, default `500` (the window accepts 10 to 5000).
 - `language`: `""` follows the system locale; otherwise a code such as `"pt_BR"` or `"en"`.
+- `theme`: `""` follows the system's light or dark mode; otherwise `"light"` or `"dark"`.
 - `ocr_lang`: tesseract languages for "Text from image (OCR)", joined with `+`. Default `""`: see below.
 - `width`, `height` (the size is saved when the popup closes).
 

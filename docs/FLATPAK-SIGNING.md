@@ -34,7 +34,7 @@ It makes the pair in a temporary keyring (your own GPG keys are not touched), wr
 
 A *secret* is a value GitHub keeps for the repository: workflows can read it, but nobody can view it afterwards (you can only replace it). The name must be exactly `FLATPAK_GPG_PRIVATE_KEY`, because `flatpak.yml` reads it by that name.
 
-**With the website:** repository **Settings** → **Secrets and variables** → **Actions** → **New repository #### With the website
+#### With the website
 
 1. Open the repository on GitHub → **Settings** → **Secrets and variables** → **Actions**.
 2. Click **New repository secret**.

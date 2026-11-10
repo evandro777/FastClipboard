@@ -12,12 +12,23 @@ mod ocr;
 mod tray;
 mod x11;
 
+/// What this launch asks of a running instance: `--toggle` flips the popup, `--prefs` opens the preferences, a plain
+/// start opens the popup.
+pub fn command() -> &'static str {
+    let mut args = std::env::args().skip(1);
+    match args.find(|a| a == "--toggle" || a == "--prefs").as_deref() {
+        Some("--toggle") => "toggle",
+        Some(_) => "prefs",
+        None => "show",
+    }
+}
+
 fn main() {
     if std::env::args().skip(1).any(|a| a == "-V" || a == "--version") {
         return println!("fastpaste {}", env!("CARGO_PKG_VERSION"));
     }
     // Fixtures never talk to a real running instance (scripts/ui-snapshot.sh).
-    if fixtures::mode().is_none() && instance::send(instance::command()) {
+    if fixtures::mode().is_none() && instance::send(command()) {
         return;
     }
     // Forced so the 100 MB GL renderer is never pulled in by accident.
@@ -35,18 +46,14 @@ fn main() {
     };
     let ui = Main::new().unwrap();
     apply_language(&settings);
+    ui.set_color_scheme_index(app::theme_index(&settings.theme));
     ui.window()
         .set_size(slint::LogicalSize::new(settings.width as f32, settings.height as f32));
 
     // With fixtures (scripts/ui-snapshot.sh) the real history and clipboard are never touched.
     if let Some(mode) = fixtures::mode() {
-        let _prefs; // alive for the event loop
-        if fixtures::page() == 1 {
-            _prefs = fixtures::prefs(mode);
-        } else {
-            fixtures::apply(&ui, mode);
-            ui.show().unwrap();
-        }
+        fixtures::apply(&ui, mode);
+        ui.show().unwrap();
         return slint::run_event_loop_until_quit().unwrap();
     }
     app::run(ui, settings);

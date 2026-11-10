@@ -742,16 +742,20 @@ impl Handle {
     /// Send Ctrl+V (Ctrl+Shift+V when `terminal`) to whatever window has focus.
     pub fn paste(&self, terminal: bool) -> Result<()> {
         // Looked up per paste, not cached: the user may change keyboard layout while we run.
-        let codes = keycodes(&*self.conn, &[XK_CONTROL_L, XK_SHIFT_L, XK_V])?;
-        let (ctrl, shift, v) = (codes[0], codes[1], codes[2]);
+        let mut syms = vec![XK_CONTROL_L, XK_SHIFT_L, XK_V];
+        syms.extend(MODIFIER_KEYSYMS);
+        let found = find_keycodes(&*self.conn, &syms)?;
+        let need =
+            |i: usize| found[i].ok_or_else(|| Box::<dyn Error>::from(format!("no key for keysym {:#x}", syms[i])));
+        let (ctrl, shift, v) = (need(0)?, need(1)?, need(2)?);
         // The user is still holding Shift/Alt/Ctrl from the shortcut that picked the entry; the target would see
         // Ctrl+Shift+V (Paste Special in office apps, nothing in xed). Release them first.
         // Layouts without e.g. a right Alt simply have fewer of these.
-        let mods = find_keycodes(&*self.conn, &MODIFIER_KEYSYMS)?;
         let down = self.conn.query_keymap()?.reply()?.keys;
-        let mut keys: Vec<_> = mods
-            .into_iter()
+        let mut keys: Vec<_> = found[3..]
+            .iter()
             .flatten()
+            .copied()
             .filter(|&c| down[usize::from(c / 8)] & (1 << (c % 8)) != 0)
             .map(|c| (KEY_RELEASE_EVENT, c))
             .collect();
@@ -766,13 +770,31 @@ impl Handle {
         }
         keys.push((KEY_RELEASE_EVENT, ctrl));
         // One by one with a pause and a final round-trip: sent back to back, GTK3 apps lost about a quarter of pastes.
-        for (kind, code) in keys {
-            self.conn.xtest_fake_input(kind, code, 0, self.root, 0, 0, 0)?;
-            self.conn.flush()?;
-            thread::sleep(Duration::from_millis(8));
+        let mut pressed: Vec<u8> = Vec::new();
+        let sent = (|| -> Result<()> {
+            for (kind, code) in keys {
+                self.conn.xtest_fake_input(kind, code, 0, self.root, 0, 0, 0)?;
+                if kind == KEY_PRESS_EVENT {
+                    pressed.push(code);
+                } else {
+                    pressed.retain(|&c| c != code);
+                }
+                self.conn.flush()?;
+                thread::sleep(Duration::from_millis(8));
+            }
+            self.conn.get_input_focus()?.reply()?;
+            Ok(())
+        })();
+        if sent.is_err() {
+            // Never leave Ctrl/Shift pressed for the desktop; best effort, the connection may be the thing that failed.
+            for code in pressed {
+                let _ = self
+                    .conn
+                    .xtest_fake_input(KEY_RELEASE_EVENT, code, 0, self.root, 0, 0, 0);
+            }
+            let _ = self.conn.flush();
         }
-        self.conn.get_input_focus()?.reply()?;
-        Ok(())
+        sent
     }
 }
 
