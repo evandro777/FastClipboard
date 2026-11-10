@@ -119,6 +119,11 @@ The AppImage does not update itself, but it has update information built in, so 
 
 [Build and configurations information](BUILD.md): building from source, the Flatpak and AppImage builds, the settings file, OCR and using your desktop's own shortcut. To see what the app decides (open, focus, paste), run `FASTPASTE_DEBUG=1 fastpaste`.
 
+## Other FastApps
+
+- [FastProcMan](https://github.com/evandro777/FastProcMan): Lightweight Linux process manager built with Rust + Slint.
+- [FastMoji](https://github.com/evandro777/FastMoji): Popup emoji picker light and fast. Written in Rust with Slint.
+
 ## Contributing and releases
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) to build, test and send a change, and [`RELEASING.md`](RELEASING.md) for how a release is cut. CI (format, clippy, tests, `cargo audit` against the RustSec advisories, MSRV, packaging checks, and the AppImage and Flatpak builds) runs on every pull request.
