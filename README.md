@@ -9,7 +9,7 @@
 
 A tiny clipboard history for Linux (X11), inspired by CopyQ. Written in Rust with [Slint](https://slint.dev), software renderer, no GL. It runs in the background, remembers what you copy (text, HTML and images) and brings it back with a global shortcut. **Light and fast**: the goal is a quick start and little memory.
 
-Landing page: <https://evandro777.github.io/FastPaste/>
+Page: <https://evandro777.github.io/FastPaste/>
 
 ![The FastPaste popup: a search box over the clipboard history, with the Shift+Enter menu open on a copied image](docs/screenshots/popup.png)
 
