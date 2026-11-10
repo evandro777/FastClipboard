@@ -979,10 +979,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastpaste"
-version = "0.1.8"
+name = "fastclipboard"
+version = "0.1.9"
 dependencies = [
- "fastpaste-core",
+ "fastclipboard-core",
  "ksni",
  "png",
  "slint",
@@ -992,8 +992,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastpaste-core"
-version = "0.1.8"
+name = "fastclipboard-core"
+version = "0.1.9"
 dependencies = [
  "serde",
  "toml",

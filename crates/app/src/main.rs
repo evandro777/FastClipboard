@@ -1,4 +1,4 @@
-use fastpaste_core::settings::Settings;
+use fastclipboard_core::settings::Settings;
 use slint::ComponentHandle;
 
 slint::include_modules!();
@@ -25,7 +25,7 @@ pub fn command() -> &'static str {
 
 fn main() {
     if std::env::args().skip(1).any(|a| a == "-V" || a == "--version") {
-        return println!("fastpaste {}", env!("CARGO_PKG_VERSION"));
+        return println!("fastclipboard {}", env!("CARGO_PKG_VERSION"));
     }
     // Fixtures never talk to a real running instance (scripts/ui-snapshot.sh).
     if fixtures::mode().is_none() && instance::send(command()) {

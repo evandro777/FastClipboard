@@ -43,9 +43,9 @@ jobs:
         run: |
           # The workflow that just finished says which asset to scan; a manual run scans both.
           case "$WORKFLOW" in
-            AppImage) patterns=(--pattern "FastPaste-*.AppImage") ;;
-            Flatpak) patterns=(--pattern "FastPaste-*.flatpak") ;;
-            *) patterns=(--pattern "FastPaste-*.AppImage" --pattern "FastPaste-*.flatpak") ;;
+            AppImage) patterns=(--pattern "FastClipboard-*.AppImage") ;;
+            Flatpak) patterns=(--pattern "FastClipboard-*.flatpak") ;;
+            *) patterns=(--pattern "FastClipboard-*.AppImage" --pattern "FastClipboard-*.flatpak") ;;
           esac
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" "${patterns[@]}" --dir assets
           : > report.md

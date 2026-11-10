@@ -6,7 +6,7 @@ __pycache__/
 /dev/*.log
 /dev/*.pid
 /appimage/AppDir/
-/FastPaste-*.AppImage*
+/FastClipboard-*.AppImage*
 /squashfs-root/
 /flatpak/vendor/
 /flatpak/repo/

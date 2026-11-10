@@ -1,6 +1,6 @@
 # Contributing
 
-FastPaste's goals are **light and fast** and **simple**: a change that adds memory, start-up time or a heavy dependency needs a measurement and a reason.
+FastClipboard's goals are **light and fast** and **simple**: a change that adds memory, start-up time or a heavy dependency needs a measurement and a reason.
 
 1. Branch from `master`, make a focused change.
 2. Run the checks locally (same as CI): `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.

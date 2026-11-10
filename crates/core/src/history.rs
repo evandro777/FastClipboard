@@ -323,7 +323,7 @@ mod tests {
     fn with_temp_dir() -> (History, PathBuf) {
         static N: AtomicUsize = AtomicUsize::new(0);
         let dir = std::env::temp_dir().join(format!(
-            "fastpaste-test-{}-{}",
+            "fastclipboard-test-{}-{}",
             std::process::id(),
             N.fetch_add(1, Ordering::SeqCst)
         ));

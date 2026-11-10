@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use fastpaste_core::{
+use fastclipboard_core::{
     history::History,
     settings::{MAX_ITEMS_RANGE, MIN_SIZE, Settings},
     transform::Transform,
@@ -138,7 +138,7 @@ fn tick(f: fn(&App)) -> impl FnMut() + 'static {
 
 fn debug(message: impl FnOnce() -> String) {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *ON.get_or_init(|| std::env::var_os("FASTPASTE_DEBUG").is_some()) {
+    if *ON.get_or_init(|| std::env::var_os("FASTCLIPBOARD_DEBUG").is_some()) {
         eprintln!("{}", message());
     }
 }
@@ -195,7 +195,7 @@ pub fn run(ui: Main, settings: Settings) {
                     eprintln!(
                         "image skipped: {} bytes as PNG, the limit is {} (or it could not be stored)",
                         png.len(),
-                        fastpaste_core::history::MAX_IMAGE_BYTES
+                        fastclipboard_core::history::MAX_IMAGE_BYTES
                     );
                 }
             }
@@ -1055,7 +1055,7 @@ fn one_line(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{THEMES, View, one_line, resolve, shortcut_from_key, shown_hotkey, theme_index};
-    use fastpaste_core::history::History;
+    use fastclipboard_core::history::History;
 
     #[test]
     fn shortcut_is_shown_capitalised() {

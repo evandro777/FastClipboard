@@ -1,4 +1,4 @@
-# AGENTS.md: FastPaste
+# AGENTS.md: FastClipboard
 
 Notes for AI agents and contributors. Read this before changing anything.
 
@@ -19,14 +19,14 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
   event time, retried until a focus-in; focus-out closes the popup (after a 300 ms grace, and a toggle that arrives
   right after such a close is ignored); the paste waits until the previous window is active again and sends
   Ctrl+Shift+V to terminals. The popup is a normal decorated window: a frameless/always-on-top one never got focus.
-- `FASTPASTE_DEBUG=1 fastpaste` logs open/focus/hide/paste decisions to stderr.
+- `FASTCLIPBOARD_DEBUG=1 fastclipboard` logs open/focus/hide/paste decisions to stderr.
 - Testing the X11 side: private Xvfb (`:98`) + `muffin --display=:98 --sm-disable` (the real WM, so focus behaves as
   on the desktop) + a temp `XDG_DATA_HOME`, with `xev` as the paste target (`stdbuf -oL xev`). Assert the display
   size from `xdpyinfo` before running `xclip`/`xdotool`, and never chain setup with `&&` where a failure would leave
   `DISPLAY` unset: a first version of this test hit the real session.
 - `crates/app/src/tray.rs` (ksni, StatusNotifierItem) + `autostart.rs`: tray menu Open / Preferences / Quit
   (Start at login and Clear history live in the preferences). The tray icon is a pixmap decoded from
-  `packaging/io.github.evandro777.FastPaste.png` (the SVG rendered at 64x64 with ImageMagick: redo it when the SVG
+  `packaging/io.github.evandro777.FastClipboard.png` (the SVG rendered at 64x64 with ImageMagick: redo it when the SVG
   changes), so it shows without a theme install. ksni is built with `async-io` + `blocking` (its default pulls tokio; keep it off). The tray is optional: when
   `spawn` fails (no watcher, no bus) the app logs and runs on. Menu labels come from the `Tr` global (translated on the
   UI thread, handed to the tray thread as strings). Careful when testing: with `DBUS_SESSION_BUS_ADDRESS` unset zbus
@@ -78,12 +78,12 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
   compared with the installed ones. The result is cached in `App.ocr_status` (starts Ready, so nothing is dimmed before the first check) and
   re-run only while it is not Ready, at start and after a language change. Not Ready: the OCR entries are dimmed (`Main.ocr-ready`) and
   `choose` opens the preferences, whose OCR block (`ocr-state`) holds the fix; the popup stays open while they are, so the user can copy
-  the command into a terminal. Fixtures: `FASTPASTE_OCR=noperm|notesseract|missing`. The flatpak-spawn probe is untested in a real Flatpak.
+  the command into a terminal. Fixtures: `FASTCLIPBOARD_OCR=noperm|notesseract|missing`. The flatpak-spawn probe is untested in a real Flatpak.
 - A taken or invalid `hotkey` does not end the app: `x11::start` grabs nothing, `app::run` calls `set_hotkey` and, on
   failure, opens the preferences with `error` 1 or 2. The list rows are history indexes tagged with `History::rev`
   (`View.rev`, `resolve`): a copy while the popup is open makes a pick/remove do nothing and rebuild the list instead
   of acting on another item. The data dir is 0700 and its files 0600 (`files::create_private_dir/write_private/write_atomic`, a verbatim copy of FastHello's `files.rs`).
-- One instance only: `instance.rs` (a verbatim copy of FastHello's, the same file in every Fast app: change it there, not here) listens on `$XDG_RUNTIME_DIR/fastpaste.sock`. A later start
+- One instance only: `instance.rs` (a verbatim copy of FastHello's, the same file in every Fast app: change it there, not here) listens on `$XDG_RUNTIME_DIR/fastclipboard.sock`. A later start
   sends `show` (or `toggle`/`prefs` from `command()` in `main.rs`) and exits, before Slint or X11 start; `claim` does the same when two starts race. Fixtures mode skips this so
   `ui-snapshot.sh` never pokes a real instance. When testing, point `XDG_RUNTIME_DIR` at a temp dir. Alt+digit is no longer bound, so it types in the search.
 
@@ -96,8 +96,8 @@ crates/app/               Slint UI + main.rs; build.rs compiles ui/ and bundles 
 packaging/                .desktop, icon, metainfo (used by the AppImage and CI validation)
 appimage/build.sh         AppImage + .zsync (host libs, not bundled); CI: appimage.yml
 dev/gen_po.py             writes the .po files from one table
-scripts/ui-snapshot.sh    renders pages on a private Xvfb with canned data (crates/app/src/fixtures.rs, env FASTPASTE_FIXTURES=empty|single|many, FASTPASTE_PAGE=<n>) to target/ui-snapshots/
-flatpak/                  manifest, build.sh (vendors crates, builds outside the repo: `~/.cache/fastpaste-flatpak`), signing key (public half); CI: flatpak.yml
+scripts/ui-snapshot.sh    renders pages on a private Xvfb with canned data (crates/app/src/fixtures.rs, env FASTCLIPBOARD_FIXTURES=empty|single|many, FASTCLIPBOARD_PAGE=<n>) to target/ui-snapshots/
+flatpak/                  manifest, build.sh (vendors crates, builds outside the repo: `~/.cache/fastclipboard-flatpak`), signing key (public half); CI: flatpak.yml
 README.md, BUILD.md       what users read / build, settings, OCR and shortcut details (keep both in step with behaviour)
 docs/                     landing page (`site/index.html`, deployed with the Flatpak remote), `screenshots/`, `FLATHUB.md`
 ```
@@ -138,7 +138,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 
 - Rust 2024, `rustfmt` max_width 120, clippy `-D warnings`. Comments explain *why*, not what.
 - Settings are serde TOML with `#[serde(default)]`; add a unit test for each new option so old files keep loading.
-- Settings path: `$XDG_DATA_HOME/FastPaste/settings.toml`.
+- Settings path: `$XDG_DATA_HOME/FastClipboard/settings.toml`.
 - Update `README.md` when behaviour changes, and this file when you learn something non-obvious.
 
 ## Testing
@@ -169,13 +169,13 @@ Work on branches, PRs to `master`. CI: `ci.yml` (fmt, clippy, tests, MSRV, metai
 
 ## Flatpak
 
-App id `io.github.evandro777.FastPaste`; `flatpak/build.sh --devel` installs `...FastPaste.Devel` next to a release. Needs `flatpak-builder` and
+App id `io.github.evandro777.FastClipboard`; `flatpak/build.sh --devel` installs `...FastClipboard.Devel` next to a release. Needs `flatpak-builder` and
 `org.freedesktop.Sdk//25.08` + `org.freedesktop.Sdk.Extension.rust-stable//25.08`. **Not built or run yet**: verify the tray, hotkey, paste and the
 socket inside the sandbox first.
 
 - Permissions: `--share=ipc`, `--socket=x11` (X11 has no sandbox, so XFixes/XGrabKey/XTest work as on the host) and
   `--talk-name=org.kde.StatusNotifierWatcher`. Nothing else; keep it that way.
-- Inside the sandbox (`FLATPAK_ID` set, `autostart::in_flatpak`): the instance socket is `$XDG_RUNTIME_DIR/app/$FLATPAK_ID/fastpaste.sock` (the only
+- Inside the sandbox (`FLATPAK_ID` set, `autostart::in_flatpak`): the instance socket is `$XDG_RUNTIME_DIR/app/$FLATPAK_ID/fastclipboard.sock` (the only
   dir shared between `flatpak run`s); the tray is built with `disable_dbus_name(true)` (ksni's pid-based bus name may not be owned);
   Start at login goes through the Background portal (`autostart::portal`, blocks while the desktop asks, so `app.rs` calls it from a thread
   and resets the switch on a refusal); OCR runs `flatpak-spawn --host tesseract` (`ocr::tesseract`), which works only after the user's

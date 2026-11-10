@@ -43,8 +43,8 @@ jobs:
 
       - name: Validate packaging metadata
         run: |
-          appstreamcli validate --no-net packaging/io.github.evandro777.FastPaste.metainfo.xml
-          desktop-file-validate packaging/io.github.evandro777.FastPaste.desktop
+          appstreamcli validate --no-net packaging/io.github.evandro777.FastClipboard.metainfo.xml
+          desktop-file-validate packaging/io.github.evandro777.FastClipboard.desktop
 
   msrv:
     name: Minimum Rust version

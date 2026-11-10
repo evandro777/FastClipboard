@@ -1,4 +1,4 @@
-//! Canned data for `scripts/ui-snapshot.sh` (`FASTPASTE_FIXTURES=empty|single|many`): the popup can be rendered with zero,
+//! Canned data for `scripts/ui-snapshot.sh` (`FASTCLIPBOARD_FIXTURES=empty|single|many`): the popup can be rendered with zero,
 //! one or many rows without reading the real history or clipboard.
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
@@ -6,7 +6,7 @@ use crate::{Main, Row, Tr};
 
 /// 0 empty, 1 single, 2 many; `None` when the variable is unset or unknown.
 pub fn mode() -> Option<usize> {
-    match std::env::var("FASTPASTE_FIXTURES").ok()?.as_str() {
+    match std::env::var("FASTCLIPBOARD_FIXTURES").ok()?.as_str() {
         "empty" => Some(0),
         "single" => Some(1),
         "many" => Some(2),
@@ -14,18 +14,18 @@ pub fn mode() -> Option<usize> {
     }
 }
 
-/// `FASTPASTE_PAGE`: 0 the popup (default), 1 the preferences over it.
+/// `FASTCLIPBOARD_PAGE`: 0 the popup (default), 1 the preferences over it.
 pub fn page() -> usize {
-    std::env::var("FASTPASTE_PAGE")
+    std::env::var("FASTCLIPBOARD_PAGE")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(0)
 }
 
-/// `FASTPASTE_OCR=noperm|notesseract|missing`: the OCR state to draw (default ready). tesseract is never run.
+/// `FASTCLIPBOARD_OCR=noperm|notesseract|missing`: the OCR state to draw (default ready). tesseract is never run.
 fn ocr_status() -> crate::ocr::Status {
     use crate::ocr::Status;
-    match std::env::var("FASTPASTE_OCR").as_deref() {
+    match std::env::var("FASTCLIPBOARD_OCR").as_deref() {
         Ok("noperm") => Status::NoPermission,
         Ok("notesseract") => Status::NoTesseract,
         Ok("missing") => Status::MissingLang(vec!["por".into(), "spa".into()]),
@@ -34,7 +34,7 @@ fn ocr_status() -> crate::ocr::Status {
 }
 
 /// Preferences over the popup; the three modes show the defaults, Portuguese selected with the clear-history question,
-/// and the shortcut-taken error. `FASTPASTE_ABOUT=1` puts the About card on top.
+/// and the shortcut-taken error. `FASTCLIPBOARD_ABOUT=1` puts the About card on top.
 fn prefs(ui: &Main, mode: usize) {
     ui.set_settings_open(true);
     ui.set_hotkey("Ctrl+Alt+V".into());
@@ -45,7 +45,7 @@ fn prefs(ui: &Main, mode: usize) {
     ui.set_version(env!("CARGO_PKG_VERSION").into());
     crate::app::fill_ocr(ui, &ocr_status());
     ui.set_confirm_clear(mode == 1);
-    ui.set_about_open(std::env::var("FASTPASTE_ABOUT").is_ok_and(|v| v == "1"));
+    ui.set_about_open(std::env::var("FASTCLIPBOARD_ABOUT").is_ok_and(|v| v == "1"));
 }
 
 const TEXTS: [&str; 12] = [

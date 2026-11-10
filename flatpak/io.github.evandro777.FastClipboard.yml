@@ -1,10 +1,10 @@
-app-id: io.github.evandro777.FastPaste
+app-id: io.github.evandro777.FastClipboard
 runtime: org.freedesktop.Platform
 runtime-version: "25.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-command: fastpaste
+command: fastclipboard
 
 # X11 only: the clipboard watcher (XFixes), the global key grab and the paste (XTest) all go through the display.
 # The tray needs the StatusNotifier watcher. No filesystem, network or GPU access (software rendering, history in the
@@ -15,21 +15,21 @@ finish-args:
   - --talk-name=org.kde.StatusNotifierWatcher
 
 modules:
-  - name: fastpaste
+  - name: fastclipboard
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/rust-stable/bin
       env:
-        CARGO_HOME: /run/build/fastpaste/cargo
+        CARGO_HOME: /run/build/fastclipboard/cargo
     build-commands:
       - cargo build --release --offline --locked
-      - install -Dm755 target/release/fastpaste ${FLATPAK_DEST}/bin/fastpaste
-      - install -Dm644 packaging/io.github.evandro777.FastPaste.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
-      - install -Dm644 packaging/io.github.evandro777.FastPaste.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
-      - install -Dm644 packaging/io.github.evandro777.FastPaste.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
-      # A development build (app-id ...FastPaste.Devel) must not collide with an installed release.
-      - sed -i "s/io\\.github\\.evandro777\\.FastPaste/${FLATPAK_ID}/g" ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
-      - case "${FLATPAK_ID}" in *.Devel) sed -i "s/^Name=FastPaste$/Name=FastPaste (Devel)/" ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop ;; esac
+      - install -Dm755 target/release/fastclipboard ${FLATPAK_DEST}/bin/fastclipboard
+      - install -Dm644 packaging/io.github.evandro777.FastClipboard.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
+      - install -Dm644 packaging/io.github.evandro777.FastClipboard.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
+      - install -Dm644 packaging/io.github.evandro777.FastClipboard.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
+      # A development build (app-id ...FastClipboard.Devel) must not collide with an installed release.
+      - sed -i "s/io\\.github\\.evandro777\\.FastClipboard/${FLATPAK_ID}/g" ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
+      - case "${FLATPAK_ID}" in *.Devel) sed -i "s/^Name=FastClipboard$/Name=FastClipboard (Devel)/" ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop ;; esac
     sources:
       - type: dir
         path: ..
@@ -41,8 +41,8 @@ modules:
           - flatpak/.flatpak-builder
           - flatpak/repo
           - flatpak/vendor
-          - flatpak/io.github.evandro777.FastPaste.Devel.yml
-          - flatpak/fastpaste.flatpak
+          - flatpak/io.github.evandro777.FastClipboard.Devel.yml
+          - flatpak/fastclipboard.flatpak
           - appimage/AppDir
           - squashfs-root
       # Crates are vendored by flatpak/build.sh, because the build runs without network access.

@@ -150,7 +150,7 @@ pub fn thumbnail(png: &[u8]) -> Thumb {
 
 /// A stored thumbnail as an image the UI can show.
 pub fn load_thumbnail(id: &str) -> Option<slint::Image> {
-    let png = std::fs::read(fastpaste_core::history::thumb_path(id)).ok()?;
+    let png = std::fs::read(fastclipboard_core::history::thumb_path(id)).ok()?;
     let (w, h, rgba) = decode_rgba(&png)?;
     Some(slint::Image::from_rgba8(
         SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(&rgba, w, h),

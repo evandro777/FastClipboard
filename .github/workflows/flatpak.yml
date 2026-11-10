@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  APP_ID: io.github.evandro777.FastPaste
+  APP_ID: io.github.evandro777.FastClipboard
 
 jobs:
   bundle:
@@ -63,7 +63,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           [ "${GITHUB_REF_TYPE}" = "tag" ] || version="${GITHUB_SHA::8}"
-          mv flatpak/fastpaste.flatpak "FastPaste-${version}-x86_64.flatpak"
+          mv flatpak/fastclipboard.flatpak "FastClipboard-${version}-x86_64.flatpak"
 
       - uses: actions/upload-artifact@v7
         if: startsWith(github.ref, 'refs/tags/v')
@@ -76,7 +76,7 @@ jobs:
         with:
           name: flatpak-x86_64
           path: |
-            FastPaste-*.flatpak
+            FastClipboard-*.flatpak
 
   # Own Flatpak remote on GitHub Pages (until Flathub accepts the app): `flatpak update` then works.
   # One-time setup (RELEASING.md): Settings -> Pages -> Source: GitHub Actions, and a `v*` tag rule on the
@@ -102,16 +102,16 @@ jobs:
           path: site
       - name: Describe the remote
         run: |
-          cat > site/fastpaste.flatpakrepo <<EOF
+          cat > site/fastclipboard.flatpakrepo <<EOF
           [Flatpak Repo]
-          Title=FastPaste
+          Title=FastClipboard
           Url=https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/
           Homepage=https://github.com/${GITHUB_REPOSITORY}
           Comment=Light and fast clipboard history
           RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
           GPGKey=$(cat flatpak/signing-key.b64)
           EOF
-          sed -i 's/^ *//' site/fastpaste.flatpakrepo
+          sed -i 's/^ *//' site/fastclipboard.flatpakrepo
           # The landing page and its screenshots live in the repo.
           cp docs/site/index.html site/
           mkdir site/screenshots && cp docs/screenshots/*.png site/screenshots/
@@ -140,4 +140,4 @@ jobs:
         run: |
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes || sleep 20
-          gh release upload "$GITHUB_REF_NAME" FastPaste-*.flatpak --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$GITHUB_REF_NAME" FastClipboard-*.flatpak --repo "$GITHUB_REPOSITORY" --clobber

@@ -5,14 +5,14 @@ landing page to GitHub Pages, and attaches both to the GitHub release; VirusTota
 
 1. Pick the version (`0.2.0`). Update **both**:
     - [Cargo.toml](./Cargo.toml) → `version`
-    - [io.github.evandro777.FastPaste.metainfo.xml](./packaging/io.github.evandro777.FastPaste.metainfo.xml) → add a `<release version="0.2.0" date="YYYY-MM-DD">` entry with notes (newest first)
+    - [io.github.evandro777.FastClipboard.metainfo.xml](./packaging/io.github.evandro777.FastClipboard.metainfo.xml) → add a `<release version="0.2.0" date="YYYY-MM-DD">` entry with notes (newest first)
 2. Run `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo audit`
     - It will update `Cargo.lock` follows the new version (CI uses `--locked` and fails on a stale lock). Commit both.
 3. Stage the files, commit and push, and Merge to `master` through a pull request, wait for CI.
 4. Tag and push (the tag must equal the version, or `appimage.yml` and `flatpak.yml` fail):
 
     ```bash
-    git tag v0.2.0 -m "FastPaste 0.2.0"
+    git tag v0.2.0 -m "FastClipboard 0.2.0"
     git push origin v0.2.0
     ```
 

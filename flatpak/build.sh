@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build and install the Flatpak for the current user.
-#   flatpak/build.sh            release id  io.github.evandro777.FastPaste        (replaces an installed FastPaste!)
-#   flatpak/build.sh --devel    dev id      io.github.evandro777.FastPaste.Devel  (installs next to it)
-#   flatpak/build.sh --bundle   also write fastpaste.flatpak
+#   flatpak/build.sh            release id  io.github.evandro777.FastClipboard        (replaces an installed FastClipboard!)
+#   flatpak/build.sh --devel    dev id      io.github.evandro777.FastClipboard.Devel  (installs next to it)
+#   flatpak/build.sh --bundle   also write fastclipboard.flatpak
 # Needs: flatpak-builder, and once: flatpak install flathub org.freedesktop.Sdk//25.08 \
 #        org.freedesktop.Sdk.Extension.rust-stable//25.08
 set -euo pipefail
@@ -11,10 +11,10 @@ cd "$(dirname "$0")"
 # on the overlay filesystem, so deps are not installed) and has no FUSE.
 installation=${FLATPAK_INSTALLATION:---user}
 if [ "$installation" = --user ]; then opts=--install-deps-from=flathub; else opts=--disable-rofiles-fuse; fi
-manifest=io.github.evandro777.FastPaste.yml
-app=io.github.evandro777.FastPaste
+manifest=io.github.evandro777.FastClipboard.yml
+app=io.github.evandro777.FastClipboard
 # Outside the repo, which lives in Dropbox: the build tree and the OSTree cache are gigabytes.
-cache=${FASTPASTE_FLATPAK_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/fastpaste-flatpak}
+cache=${FASTCLIPBOARD_FLATPAK_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/fastclipboard-flatpak}
 devel=0; bundle=0
 for arg in "$@"; do
   case "$arg" in
@@ -43,8 +43,8 @@ if [ "$bundle" = 1 ]; then
   flatpak-builder $installation $opts --force-clean --repo=repo ${FLATPAK_GPG_KEY:+--gpg-sign=$FLATPAK_GPG_KEY} \
     --state-dir="$cache/state" "$cache/build-dir" "$manifest"
   # --repo-url + --gpg-keys make a bundle installed from the release page follow the remote for updates.
-  base64 -d signing-key.b64 | flatpak build-bundle repo fastpaste.flatpak "$app" \
-    --repo-url=https://evandro777.github.io/FastPaste/ --gpg-keys=-
-  echo ">> wrote flatpak/fastpaste.flatpak"
+  base64 -d signing-key.b64 | flatpak build-bundle repo fastclipboard.flatpak "$app" \
+    --repo-url=https://evandro777.github.io/FastClipboard/ --gpg-keys=-
+  echo ">> wrote flatpak/fastclipboard.flatpak"
 fi
 echo ">> run it with: flatpak run $app"

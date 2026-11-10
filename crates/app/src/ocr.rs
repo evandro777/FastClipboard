@@ -126,7 +126,7 @@ impl Status {
     pub fn command(&self) -> String {
         match self {
             Status::NoPermission => {
-                "flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste".into()
+                "flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastClipboard".into()
             }
             _ => String::new(),
         }

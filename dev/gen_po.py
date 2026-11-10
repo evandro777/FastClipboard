@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes crates/app/translations/<lang>/LC_MESSAGES/fastpaste.po (bundled by build.rs). Edit the table, run, commit.
+"""Writes crates/app/translations/<lang>/LC_MESSAGES/fastclipboard.po (bundled by build.rs). Edit the table, run, commit.
 Slint's default gettext context is the component name, so msgctxt is `Main` (UI) or `Tr` (strings built in Rust)."""
 import os
 
@@ -36,8 +36,8 @@ T = [
     ),
     (
         "Main",
-        "OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):",
-        ["OCR desativado: o FastPaste não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"],
+        "OCR is off: FastClipboard cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):",
+        ["OCR desativado: o FastClipboard não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"],
     ),
     (
         "Main",
@@ -72,7 +72,7 @@ T = [
         ["Todos os textos e imagens copiados serão apagados. Isso não pode ser desfeito."],
     ),
     ("Main", "Clear history", ["Limpar histórico"]),
-    ("Main", "Quit FastPaste", ["Sair do FastPaste"]),
+    ("Main", "Quit FastClipboard", ["Sair do FastClipboard"]),
     ("Main", "About", ["Sobre"]),
     ("Main", "Light and fast clipboard history for Linux.", ["Histórico da área de transferência leve e rápido para Linux."]),
     # The About card of the Fast family kit (about.slint): the same strings, in the same context, in every app.
@@ -91,7 +91,7 @@ q = lambda s: '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 for i, lang in enumerate(LANGS):
     d = f"{OUT}/{lang}/LC_MESSAGES"
     os.makedirs(d, exist_ok=True)
-    with open(f"{d}/fastpaste.po", "w") as f:
+    with open(f"{d}/fastclipboard.po", "w") as f:
         f.write(f'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n"Language: {lang}\\n"\n')
         for ctx, msgid, tr in T:
             assert len(tr) == len(LANGS) and tr[i].count("{}") == msgid.count("{}"), msgid

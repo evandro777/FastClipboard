@@ -14,7 +14,7 @@ fn host_dir() -> Option<PathBuf> {
 }
 
 fn flatpak_id() -> String {
-    std::env::var("FLATPAK_ID").unwrap_or_else(|_| "io.github.evandro777.FastPaste".into())
+    std::env::var("FLATPAK_ID").unwrap_or_else(|_| "io.github.evandro777.FastClipboard".into())
 }
 
 fn path() -> PathBuf {
@@ -27,7 +27,7 @@ fn path() -> PathBuf {
         .filter(|p| p.is_absolute())
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("autostart/fastpaste.desktop")
+    base.join("autostart/fastclipboard.desktop")
 }
 
 pub fn is_enabled() -> bool {
@@ -62,8 +62,8 @@ fn quote(arg: &str) -> String {
 
 fn entry(exec: &str) -> String {
     format!(
-        "[Desktop Entry]\nType=Application\nName=FastPaste\nComment=Clipboard (cut & paste) history\n\
-         Exec={exec}\nIcon=io.github.evandro777.FastPaste\nTerminal=false\n"
+        "[Desktop Entry]\nType=Application\nName=FastClipboard\nComment=Clipboard (cut & paste) history\n\
+         Exec={exec}\nIcon=io.github.evandro777.FastClipboard\nTerminal=false\n"
     )
 }
 
@@ -80,7 +80,7 @@ fn portal_options(enabled: bool, token: &str) -> HashMap<&'static str, Value<'st
             Value::from("Open the clipboard history with its shortcut after login".to_string()),
         ),
         ("autostart", Value::from(enabled)),
-        ("commandline", Value::from(vec!["fastpaste".to_string()])),
+        ("commandline", Value::from(vec!["fastclipboard".to_string()])),
     ])
 }
 
@@ -89,7 +89,7 @@ fn portal_options(enabled: bool, token: &str) -> HashMap<&'static str, Value<'st
 fn portal(enabled: bool) -> Result<(), String> {
     let err = |e: zbus::Error| e.to_string();
     let conn = Connection::session().map_err(err)?;
-    let token = format!("fastpaste{}", std::process::id());
+    let token = format!("fastclipboard{}", std::process::id());
     let sender = conn
         .unique_name()
         .map_or_else(String::new, |n| n.trim_start_matches(':').replace('.', "_"));
@@ -134,9 +134,9 @@ pub fn set(enabled: bool) -> io::Result<()> {
     }
     let p = path();
     if enabled {
-        // /app/bin/fastpaste means nothing to the host, which must go through `flatpak run`.
+        // /app/bin/fastclipboard means nothing to the host, which must go through `flatpak run`.
         let exec = if in_flatpak() {
-            format!("flatpak run --command=fastpaste {}", flatpak_id())
+            format!("flatpak run --command=fastclipboard {}", flatpak_id())
         } else {
             quote(&exe().ok_or_else(|| io::Error::other("cannot find the executable"))?)
         };
@@ -156,9 +156,9 @@ mod tests {
 
     #[test]
     fn exec_path_is_quoted_for_spaces_and_reserved_characters() {
-        assert_eq!(quote("/home/a b, c/fastpaste"), "\"/home/a b, c/fastpaste\"");
+        assert_eq!(quote("/home/a b, c/fastclipboard"), "\"/home/a b, c/fastclipboard\"");
         assert_eq!(quote("/x/$y\"z%"), "\"/x/\\\\$y\\\\\"z%%\"");
-        assert!(entry(&quote("/bin/fastpaste")).contains("\nExec=\"/bin/fastpaste\"\n"));
+        assert!(entry(&quote("/bin/fastclipboard")).contains("\nExec=\"/bin/fastclipboard\"\n"));
     }
 
     #[test]
@@ -166,7 +166,7 @@ mod tests {
         let on = portal_options(true, "tok");
         assert_eq!(on["autostart"], Value::from(true));
         assert_eq!(on["handle_token"], Value::from("tok".to_string()));
-        assert_eq!(on["commandline"], Value::from(vec!["fastpaste".to_string()]));
+        assert_eq!(on["commandline"], Value::from(vec!["fastclipboard".to_string()]));
         assert_eq!(portal_options(false, "t")["autostart"], Value::from(false));
     }
 }

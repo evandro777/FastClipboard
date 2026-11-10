@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renders pages of the app on a private Xvfb display with canned data (FASTPASTE_FIXTURES) and saves PNGs to
+# Renders pages of the app on a private Xvfb display with canned data (FASTCLIPBOARD_FIXTURES) and saves PNGs to
 # target/ui-snapshots/<page>-<mode>.png. The real system is never scanned or changed.
 # Usage: scripts/ui-snapshot.sh [page ...]   (names or numbers; default all)   MODES="empty single many" to narrow.
 set -euo pipefail
@@ -26,10 +26,10 @@ sleep 1
 for name in "${names[@]}"; do
   page=${PAGES[$name]:-$name}
   for mode in $MODES; do
-    DISPLAY=$DISPLAY_NUM FASTPASTE_FIXTURES=$mode FASTPASTE_PAGE=$page target/debug/fastpaste >/dev/null 2>&1 &
+    DISPLAY=$DISPLAY_NUM FASTCLIPBOARD_FIXTURES=$mode FASTCLIPBOARD_PAGE=$page target/debug/fastclipboard >/dev/null 2>&1 &
     APP=$!
     for _ in $(seq 50); do
-      DISPLAY=$DISPLAY_NUM xdotool search --name FastPaste >/dev/null 2>&1 && break
+      DISPLAY=$DISPLAY_NUM xdotool search --name FastClipboard >/dev/null 2>&1 && break
       sleep 0.2
     done
     sleep 1

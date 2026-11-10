@@ -1,4 +1,4 @@
-//! User settings in one TOML file under the XDG data dir (`~/.local/share/FastPaste`).
+//! User settings in one TOML file under the XDG data dir (`~/.local/share/FastClipboard`).
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::files::{read_or_backup, write_atomic};
 
 /// Folder name under the XDG data dir.
-pub const APP_DIR: &str = "FastPaste";
+pub const APP_DIR: &str = "FastClipboard";
 pub const MIN_SIZE: (u32, u32) = (400, 300);
 /// Upper bound for a hand-edited size; a huge value would fail at window creation.
 pub const MAX_SIZE: u32 = 8192;
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn unreadable_or_invalid_files_are_kept_as_a_backup() {
-        let dir = std::env::temp_dir().join(format!("fastpaste-load-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("fastclipboard-load-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let file = dir.join("settings.toml");
         let backups = || {

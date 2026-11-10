@@ -9,7 +9,7 @@ use ksni::{
 use crate::images;
 
 /// The app icon (packaging/*.svg rendered at 64x64): a pixmap, so it shows without being installed in a theme.
-const ICON: &[u8] = include_bytes!("../../../packaging/io.github.evandro777.FastPaste.png");
+const ICON: &[u8] = include_bytes!("../../../packaging/io.github.evandro777.FastClipboard.png");
 
 /// Already translated, because the tray lives on its own thread and the strings come from Slint's `Tr` global.
 pub struct Labels {
@@ -32,11 +32,11 @@ pub struct FastTray {
 
 impl Tray for FastTray {
     fn id(&self) -> String {
-        "fastpaste".into()
+        "fastclipboard".into()
     }
 
     fn title(&self) -> String {
-        "FastPaste".into()
+        "FastClipboard".into()
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {

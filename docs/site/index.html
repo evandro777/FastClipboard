@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FastPaste</title>
+<title>FastClipboard</title>
 <meta name="description" content="A light and fast clipboard history for Linux (X11), written in Rust. Press a shortcut, search, paste.">
-<meta property="og:title" content="FastPaste: clipboard history for Linux">
+<meta property="og:title" content="FastClipboard: clipboard history for Linux">
 <meta property="og:description" content="A light and fast clipboard history for Linux (X11), written in Rust. Press a shortcut, search, paste.">
-<meta property="og:image" content="https://evandro777.github.io/FastPaste/screenshots/popup.png">
+<meta property="og:image" content="https://evandro777.github.io/FastClipboard/screenshots/popup.png">
 <style>
   :root { --bg:#fff; --fg:#1d1d20; --muted:#5f6368; --card:#f4f5f7; --accent:#0b7d3c; --border:#dadce0; --warn:#fff4d6; --warn-fg:#5c4400; }
   @media (prefers-color-scheme: dark) {
@@ -39,17 +39,17 @@
 <body>
 <main>
   <header>
-    <h1>FastPaste</h1>
+    <h1>FastClipboard</h1>
     <p class="tag">A clipboard history for Linux that is light and fast.</p>
     <p>Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>V</kbd>, search, press <kbd>Enter</kbd>.</p>
-    <p><a href="https://github.com/evandro777/FastPaste">GitHub</a> ·
-       <a href="https://github.com/evandro777/FastPaste/releases">Releases</a></p>
+    <p><a href="https://github.com/evandro777/FastClipboard">GitHub</a> ·
+       <a href="https://github.com/evandro777/FastClipboard/releases">Releases</a></p>
     <p class="callout"><b>X11 only for now.</b> Tested on Linux Mint Cinnamon. Wayland does not allow a global shortcut or clipboard watching.</p>
   </header>
 
   <div class="shots">
-    <img src="screenshots/popup.png" width="600" height="450" alt="The FastPaste popup: a search box over the clipboard history, with the Shift+Enter menu open on a copied image">
-    <img src="screenshots/preferences.png" width="440" height="470" alt="FastPaste preferences: shortcut, entries kept, language, start at login" loading="lazy">
+    <img src="screenshots/popup.png" width="600" height="450" alt="The FastClipboard popup: a search box over the clipboard history, with the Shift+Enter menu open on a copied image">
+    <img src="screenshots/preferences.png" width="440" height="470" alt="FastClipboard preferences: shortcut, entries kept, language, start at login" loading="lazy">
   </div>
 
   <h2>What it does</h2>
@@ -67,32 +67,32 @@
   </div>
 
   <h2>Install with Flatpak (updates itself)</h2>
-  <p>This remote keeps FastPaste updated with <code>flatpak update</code> and your software centre:</p>
-<pre>flatpak remote-add --system --if-not-exists fastpaste https://evandro777.github.io/FastPaste/fastpaste.flatpakrepo
-flatpak install --system fastpaste io.github.evandro777.FastPaste</pre>
+  <p>This remote keeps FastClipboard updated with <code>flatpak update</code> and your software centre:</p>
+<pre>flatpak remote-add --system --if-not-exists fastclipboard https://evandro777.github.io/FastClipboard/fastclipboard.flatpakrepo
+flatpak install --system fastclipboard io.github.evandro777.FastClipboard</pre>
   <p><small>Use <code>--system</code>: Linux Mint's Update Manager only looks at system-wide Flatpaks. The runtime comes from
      Flathub. The remote is GPG-signed, but the key lives in the
-     <a href="https://github.com/evandro777/FastPaste">source repository</a>, so it is only as trustworthy as that.</small></p>
+     <a href="https://github.com/evandro777/FastClipboard">source repository</a>, so it is only as trustworthy as that.</small></p>
   <p>For a desktop shortcut, bind a key to:</p>
-<pre>flatpak run io.github.evandro777.FastPaste --toggle</pre>
+<pre>flatpak run io.github.evandro777.FastClipboard --toggle</pre>
   <details>
     <summary>OCR in the Flatpak</summary>
     <p>The sandbox cannot see the host's <code>tesseract</code>. If you want OCR, install tesseract on the host and let the
        app run it there:</p>
-<pre>flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastPaste</pre>
-    <p><small>This lets FastPaste start commands outside the sandbox, which removes most of what the sandbox protects.
+<pre>flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.evandro777.FastClipboard</pre>
+    <p><small>This lets FastClipboard start commands outside the sandbox, which removes most of what the sandbox protects.
        It is off by default; the AppImage has OCR without it.</small></p>
   </details>
 
   <h2>Or the AppImage</h2>
-  <p>Download <code>FastPaste-&lt;version&gt;-x86_64.AppImage</code> from the
-     <a href="https://github.com/evandro777/FastPaste/releases/latest">latest release</a>, <code>chmod +x</code> it and run it.
+  <p>Download <code>FastClipboard-&lt;version&gt;-x86_64.AppImage</code> from the
+     <a href="https://github.com/evandro777/FastClipboard/releases/latest">latest release</a>, <code>chmod +x</code> it and run it.
      It uses the fontconfig, xkbcommon and X11 libraries already on your system, and carries update information, so
      AppImageUpdate, Gear Lever or AppManager download only what changed.</p>
   <p class="note">Run one of the two, not both: they use different data folders and fight over the shortcut.</p>
 
   <h2>License</h2>
-  <p>GPL-3.0-or-later. See the <a href="https://github.com/evandro777/FastPaste">repository</a>.</p>
+  <p>GPL-3.0-or-later. See the <a href="https://github.com/evandro777/FastClipboard">repository</a>.</p>
 </main>
 </body>
 </html>

@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=FastPaste
+Name=FastClipboard
 Type=Application
 GenericName=Clipboard Manager
 Comment=Clipboard (cut & paste) history
-Exec=fastpaste
+Exec=fastclipboard
 Categories=Utility;
-Icon=io.github.evandro777.FastPaste
+Icon=io.github.evandro777.FastClipboard
 Terminal=false

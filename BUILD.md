@@ -32,45 +32,45 @@ cargo test
 
 | Command              | Effect                                                         |
 |----------------------|----------------------------------------------------------------|
-| `fastpaste`          | Open the popup (starts the daemon if needed)                   |
-| `fastpaste --toggle` | Open it, or close it if it is open (for your own shortcut)     |
-| `fastpaste --prefs`  | Open the preferences                                           |
+| `fastclipboard`          | Open the popup (starts the daemon if needed)                   |
+| `fastclipboard --toggle` | Open it, or close it if it is open (for your own shortcut)     |
+| `fastclipboard --prefs`  | Open the preferences                                           |
 
 ## From a release (Flatpak bundle)
 
-Download `FastPaste-<version>-x86_64.flatpak` from the [Releases](https://github.com/evandro777/FastPaste/releases) page, then:
+Download `FastClipboard-<version>-x86_64.flatpak` from the [Releases](https://github.com/evandro777/FastClipboard/releases) page, then:
 
 ```bash
-flatpak install --user ./FastPaste-<version>-x86_64.flatpak
-flatpak run io.github.evandro777.FastPaste
+flatpak install --user ./FastClipboard-<version>-x86_64.flatpak
+flatpak run io.github.evandro777.FastClipboard
 ```
 
 For automatic updates use the Flatpak remote described in the [README](README.md#install) instead.
 
 ## Build the Flatpak yourself
 
-App id: `io.github.evandro777.FastPaste`.
+App id: `io.github.evandro777.FastClipboard`.
 
 ```bash
 sudo apt install flatpak-builder
 flatpak install --user flathub org.freedesktop.Sdk//25.08 org.freedesktop.Sdk.Extension.rust-stable//25.08
-flatpak/build.sh --devel      # installs io.github.evandro777.FastPaste.Devel next to a release
-flatpak run io.github.evandro777.FastPaste.Devel
+flatpak/build.sh --devel      # installs io.github.evandro777.FastClipboard.Devel next to a release
+flatpak run io.github.evandro777.FastClipboard.Devel
 ```
 
-`flatpak/build.sh` without `--devel` builds the real id; `--bundle` also writes `flatpak/fastpaste.flatpak`. Crates are vendored into `flatpak/vendor` (git-ignored) because the sandboxed build has no network, and the build tree goes to `~/.cache/fastpaste-flatpak` (set `FASTPASTE_FLATPAK_CACHE` to move it), so it stays out of the repository. The sandbox only gets the X11 socket, IPC and the tray's D-Bus name. Settings live in `~/.var/app/io.github.evandro777.FastPaste/data/FastPaste/`.
+`flatpak/build.sh` without `--devel` builds the real id; `--bundle` also writes `flatpak/fastclipboard.flatpak`. Crates are vendored into `flatpak/vendor` (git-ignored) because the sandboxed build has no network, and the build tree goes to `~/.cache/fastclipboard-flatpak` (set `FASTCLIPBOARD_FLATPAK_CACHE` to move it), so it stays out of the repository. The sandbox only gets the X11 socket, IPC and the tray's D-Bus name. Settings live in `~/.var/app/io.github.evandro777.FastClipboard/data/FastClipboard/`.
 
 How the signed remote is built on GitHub: [`docs/FLATPAK-SIGNING.md`](docs/FLATPAK-SIGNING.md).
 
 ## Build the AppImage yourself
 
 ```bash
-appimage/build.sh             # needs appimagetool on PATH; writes FastPaste-<version>-x86_64.AppImage (+ .zsync)
+appimage/build.sh             # needs appimagetool on PATH; writes FastClipboard-<version>-x86_64.AppImage (+ .zsync)
 ```
 
 ## Settings and data
 
-**☰ / Tray → Preferences…** (or `fastpaste --prefs`) edits the appearance (follow the system, light or dark), the shortcut (click it and press the new keys), the number of entries kept and the language, and applies each change at once, without a restart (the only button is Close). A shortcut that another program already holds is refused and the old one stays. The popup stays open while Preferences or About is open, even if you click another window. It also has **Start at login** (writes `~/.config/autostart/fastpaste.desktop`; in the Flatpak it asks the desktop through the Background portal, or writes `~/.config/autostart/io.github.evandro777.FastPaste.desktop` itself when the optional `--filesystem=xdg-config/autostart` override is set), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastPaste/settings.toml` (defaults to `~/.local/share/FastPaste`):
+**☰ / Tray → Preferences…** (or `fastclipboard --prefs`) edits the appearance (follow the system, light or dark), the shortcut (click it and press the new keys), the number of entries kept and the language, and applies each change at once, without a restart (the only button is Close). A shortcut that another program already holds is refused and the old one stays. The popup stays open while Preferences or About is open, even if you click another window. It also has **Start at login** (writes `~/.config/autostart/fastclipboard.desktop`; in the Flatpak it asks the desktop through the Background portal, or writes `~/.config/autostart/io.github.evandro777.FastClipboard.desktop` itself when the optional `--filesystem=xdg-config/autostart` override is set), **Clear history** (asks first) and **About**. The same values live in `$XDG_DATA_HOME/FastClipboard/settings.toml` (defaults to `~/.local/share/FastClipboard`):
 
 - `hotkey`: modifiers (`ctrl`, `alt`, `shift`, `super`) plus one letter or digit, default `"ctrl+alt+v"`.
 - `max_items`: how many entries are kept, default `500` (the window accepts 10 to 5000).
@@ -81,7 +81,7 @@ appimage/build.sh             # needs appimagetool on PATH; writes FastPaste-<ve
 
 History is in `history.toml` next to `settings.toml`; images are files in `images/` (the PNG and a tiny thumbnail), deleted with their entry. Text over 1 MiB and images over 8 MB (PNG only) are not stored, and a copy skipped for size is reported on stderr. Together, the text of all entries is capped at 4 MiB and the image files at 1 GiB: beyond that the oldest entries are dropped, even before `max_items` is reached. Everything copied is stored in clear text (except password-manager copies): use **Clear history** in the preferences or Alt+D when that matters.
 
-Only one instance runs. Starting `fastpaste` again opens the popup of the running one.
+Only one instance runs. Starting `fastclipboard` again opens the popup of the running one.
 
 ### Text from an image (OCR)
 
@@ -106,10 +106,10 @@ Other languages follow the same pattern (`tesseract-ocr-<code>`); other distribu
 
 To check the installed languages, run `tesseract --list-langs`.
 
-By default the languages follow the **Language** of the app: the app's language first (`pt_BR` → `por`, also `es`, `fr`, `de`, `it`), then English, and only the packs that are installed, so a missing pack never breaks it. For anything else set `ocr_lang` to the installed codes joined with `+`, for example `ocr_lang = "eng+por"`; it overrides the automatic choice. Tesseract tries the languages together on the same image. Suggestion: always include `eng` and add the one other language you read most, with the main one first. More languages make it slower and a little less accurate. FastPaste checks `tesseract` and the language packs it would use at start, after saving the preferences, and each time the popup opens while something is missing. When OCR cannot run, the **OCR ·** entries are dimmed; picking one opens the preferences, which say what is wrong (Flatpak without the permission below, `tesseract` not installed, or language packs missing, including those named in `ocr_lang`) and link to this section (only the Flatpak permission is shown as a command here). A working setup is not re-checked on every open, so if `tesseract` is removed later, the failure only appears on stderr (run `FASTPASTE_DEBUG=1 fastpaste` from a terminal) and nothing is pasted. The popup closes at once; the text arrives a second or two later.
+By default the languages follow the **Language** of the app: the app's language first (`pt_BR` → `por`, also `es`, `fr`, `de`, `it`), then English, and only the packs that are installed, so a missing pack never breaks it. For anything else set `ocr_lang` to the installed codes joined with `+`, for example `ocr_lang = "eng+por"`; it overrides the automatic choice. Tesseract tries the languages together on the same image. Suggestion: always include `eng` and add the one other language you read most, with the main one first. More languages make it slower and a little less accurate. FastClipboard checks `tesseract` and the language packs it would use at start, after saving the preferences, and each time the popup opens while something is missing. When OCR cannot run, the **OCR ·** entries are dimmed; picking one opens the preferences, which say what is wrong (Flatpak without the permission below, `tesseract` not installed, or language packs missing, including those named in `ocr_lang`) and link to this section (only the Flatpak permission is shown as a command here). A working setup is not re-checked on every open, so if `tesseract` is removed later, the failure only appears on stderr (run `FASTCLIPBOARD_DEBUG=1 fastclipboard` from a terminal) and nothing is pasted. The popup closes at once; the text arrives a second or two later.
 
 ### Using your desktop's own shortcut (like CopyQ)
 
 Besides the built-in global shortcut, you can bind a key in your desktop to a command, the way it is usually done for CopyQ. The commands talk to the running instance (table above).
 
-On Cinnamon: **System Settings → Keyboard → Shortcuts → Custom Shortcuts → Add custom shortcut**, command `fastpaste --toggle` (use the full path, such as `/home/you/.local/bin/fastpaste`, or the AppImage path, if it is not on your `PATH`; for the Flatpak use `flatpak run io.github.evandro777.FastPaste --toggle`), then click the shortcut column and press **Super+V**. FastPaste must already be running (start it at login in the preferences); if it is not, the command starts it and the popup does not open until you run it again.
+On Cinnamon: **System Settings → Keyboard → Shortcuts → Custom Shortcuts → Add custom shortcut**, command `fastclipboard --toggle` (use the full path, such as `/home/you/.local/bin/fastclipboard`, or the AppImage path, if it is not on your `PATH`; for the Flatpak use `flatpak run io.github.evandro777.FastClipboard --toggle`), then click the shortcut column and press **Super+V**. FastClipboard must already be running (start it at login in the preferences); if it is not, the command starts it and the popup does not open until you run it again.

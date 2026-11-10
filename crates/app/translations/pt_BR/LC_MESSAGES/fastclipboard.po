@@ -80,8 +80,8 @@ msgid "Also used to read text from images (OCR): this language first, then Engli
 msgstr "Também usado para ler texto de imagens (OCR): este idioma primeiro, depois inglês, se os pacotes do tesseract estiverem instalados."
 
 msgctxt "Main"
-msgid "OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):"
-msgstr "OCR desativado: o FastPaste não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"
+msgid "OCR is off: FastClipboard cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):"
+msgstr "OCR desativado: o FastClipboard não consegue executar o tesseract do seu sistema. Execute isto uma vez (o tesseract também precisa estar instalado no sistema):"
 
 msgctxt "Main"
 msgid "OCR needs tesseract, which is not installed. Install it, with English, then see the help page."
@@ -136,8 +136,8 @@ msgid "Clear history"
 msgstr "Limpar histórico"
 
 msgctxt "Main"
-msgid "Quit FastPaste"
-msgstr "Sair do FastPaste"
+msgid "Quit FastClipboard"
+msgstr "Sair do FastClipboard"
 
 msgctxt "Main"
 msgid "About"

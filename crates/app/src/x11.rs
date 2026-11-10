@@ -24,8 +24,8 @@ use x11rb::{
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 /// Same caps as `History`: a bigger property is skipped instead of truncated.
-const MAX_PROP_UNITS: u32 = (fastpaste_core::history::MAX_ITEM_BYTES / 4) as u32;
-const MAX_IMAGE_UNITS: u32 = (fastpaste_core::history::MAX_IMAGE_BYTES / 4) as u32;
+const MAX_PROP_UNITS: u32 = (fastclipboard_core::history::MAX_ITEM_BYTES / 4) as u32;
+const MAX_IMAGE_UNITS: u32 = (fastclipboard_core::history::MAX_IMAGE_BYTES / 4) as u32;
 const XK_SHIFT_L: u32 = 0xffe1;
 const XK_CONTROL_L: u32 = 0xffe3;
 const XK_V: u32 = 0x76;
@@ -285,8 +285,8 @@ impl Incr {
 
     fn add(&mut self, chunk: &[u8]) {
         let cap = match self.flavor {
-            Flavor::Image => fastpaste_core::history::MAX_IMAGE_BYTES,
-            _ => fastpaste_core::history::MAX_ITEM_BYTES,
+            Flavor::Image => fastclipboard_core::history::MAX_IMAGE_BYTES,
+            _ => fastclipboard_core::history::MAX_ITEM_BYTES,
         };
         if let Some(all) = &mut self.buf {
             if all.len() + chunk.len() > cap {
@@ -379,7 +379,7 @@ pub fn start(
             targets: atom(b"TARGETS")?,
             incr: atom(b"INCR")?,
             secret_hint: atom(b"x-kde-passwordManagerHint")?,
-            prop: atom(b"_FASTPASTE_PROP")?,
+            prop: atom(b"_FASTCLIPBOARD_PROP")?,
             active: atom(b"_NET_ACTIVE_WINDOW")?,
             user_time: atom(b"_NET_WM_USER_TIME")?,
         });
@@ -531,7 +531,7 @@ impl Daemon {
                 } else {
                     eprintln!(
                         "image skipped: bigger than the {} byte limit",
-                        fastpaste_core::history::MAX_IMAGE_BYTES
+                        fastclipboard_core::history::MAX_IMAGE_BYTES
                     );
                 }
             }
@@ -850,7 +850,7 @@ mod tests {
 
     #[test]
     fn chunked_data_over_the_cap_is_dropped_but_the_text_is_kept() {
-        let big = vec![b'x'; fastpaste_core::history::MAX_ITEM_BYTES / 2 + 1];
+        let big = vec![b'x'; fastclipboard_core::history::MAX_ITEM_BYTES / 2 + 1];
         let mut text = Incr::new(Flavor::Text);
         let mut html = Incr::new(Flavor::Html("t".into()));
         for _ in 0..2 {
@@ -866,7 +866,7 @@ mod tests {
 
         // The image cap is higher: the same 1 MiB passes.
         let mut image = Incr::new(Flavor::Image);
-        image.add(&vec![0; fastpaste_core::history::MAX_ITEM_BYTES + 1]);
+        image.add(&vec![0; fastclipboard_core::history::MAX_ITEM_BYTES + 1]);
         assert!(matches!(image.finish(), Done::Image(_)));
     }
 

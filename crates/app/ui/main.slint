@@ -137,7 +137,7 @@ export component Main inherits Window {
     }
 
     // A normal managed window: frameless or always-on-top ones did not get keyboard focus from the WM.
-    title: "FastPaste";
+    title: "FastClipboard";
     min-width: 356px;
     min-height: 300px;
     preferred-width: 600px;
@@ -478,7 +478,7 @@ export component Main inherits Window {
                                 Text {
                                     wrap: word-wrap;
                                     color: Family.warning;
-                                    text: root.ocr-state == 1 ? @tr("OCR is off: FastPaste cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):")
+                                    text: root.ocr-state == 1 ? @tr("OCR is off: FastClipboard cannot start the tesseract of your system. Run this once (tesseract must be installed on the system too):")
                                         : root.ocr-state == 2 ? @tr("OCR needs tesseract, which is not installed. Install it, with English, then see the help page.")
                                         : @tr("OCR languages not installed: {}. Install them, then see the help page.", root.ocr-missing);
                                 }
@@ -494,7 +494,7 @@ export component Main inherits Window {
                                     alignment: start;
                                     Button {
                                         text: @tr("Help page");
-                                        clicked => { root.open-url("https://github.com/evandro777/FastPaste/blob/master/BUILD.md#text-from-an-image-ocr"); }
+                                        clicked => { root.open-url("https://github.com/evandro777/FastClipboard/blob/master/BUILD.md#text-from-an-image-ocr"); }
                                     }
                                 }
                             }
@@ -513,7 +513,7 @@ export component Main inherits Window {
                     }
                     HorizontalLayout {
                         spacing: 8px;
-                        Button { text: @tr("Quit FastPaste"); clicked => { root.quit(); } }
+                        Button { text: @tr("Quit FastClipboard"); clicked => { root.quit(); } }
                         Button { text: @tr("About"); clicked => { root.about-open = true; } }
                         Rectangle { horizontal-stretch: 1; }
                         Button { text: @tr("Close"); primary: true; clicked => { root.close-overlay(); } }
@@ -571,11 +571,11 @@ export component Main inherits Window {
                 about-box := VerticalLayout {
                     padding: 16px;
                     AboutCard {
-                        icon: @image-url("../../../packaging/io.github.evandro777.FastPaste.png");
-                        name: "FastPaste";
+                        icon: @image-url("../../../packaging/io.github.evandro777.FastClipboard.png");
+                        name: "FastClipboard";
                         version: root.version;
                         description: @tr("Light and fast clipboard history for Linux.");
-                        url: "github.com/evandro777/FastPaste";
+                        url: "github.com/evandro777/FastClipboard";
                         link-clicked(u) => { root.open-url(u); }
                         close => { root.about-open = false; }
                     }
