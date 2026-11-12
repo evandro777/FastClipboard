@@ -21,7 +21,7 @@ Page: <https://evandro777.github.io/FastClipboard/>
 - Keyboard first: run it once and press **Ctrl+Alt+V**; `Shift+Enter` (or right click) opens the options menu for plain text, text transforms and OCR
 - Opens centered on the mouse pointer (kept inside that monitor), remembers the size you give it, and closes when it loses focus
 - Pastes back into the window you were using with Ctrl+V (Ctrl+Shift+V in terminals). If that window cannot be refocused, nothing is sent and the entry stays on the clipboard
-- Copies from password managers (the `x-kde-passwordManagerHint` flag, set by KeePassXC, Bitwarden and others) are never recorded. A password manager that does not set it is recorded like any other copy, in clear text in `history.toml` (readable only by your user) until the entry is dropped: use **Clear history** or Alt+D when that matters
+- Copies from password managers (the `x-kde-passwordManagerHint` flag, set by KeePassXC, Bitwarden and others) are never recorded. A password manager that does not set it is recorded like any other copy, in clear text in `history.toml` (readable only by your user) until the entry is dropped: use **Clear history** or Shift+Delete when that matters
 - Tray icon (**Open**, **Preferences…**, **Quit**) and start at login; the **☰** button next to the search box opens the preferences too
 - Interface in English and Português (Brasil); follows the system locale
 
@@ -34,7 +34,7 @@ Page: <https://evandro777.github.io/FastClipboard/>
 | PgUp / PgDn           | move one page of rows at a time                                     |
 | ↓ / scroll to the end | the list shows 20 entries and loads the next 20 on reaching the end |
 | Right click           | the Shift+Enter options menu for the row under the pointer          |
-| Alt+D                 | delete the entry                                                    |
+| Shift+Delete          | delete the entry                                                    |
 | Esc                   | close                                                               |
 
 ## Status
@@ -42,6 +42,16 @@ Page: <https://evandro777.github.io/FastClipboard/>
 Early pilot. Works on **X11** (tested on Cinnamon). There is no Wayland support: it does not allow a global shortcut or watching the clipboard from a background app.
 
 The tray icon needs a StatusNotifier host (Cinnamon, KDE and GNOME with the AppIndicator extension have one). Without one the app prints a message and keeps working, only without the icon.
+
+## Keyboard shortcut
+
+- **Recommended: the built-in shortcut** (Preferences, default `Ctrl+Alt+V`). It is instant because FastClipboard stays in memory. On Cinnamon avoid combos with `Super`: while the menu opens on a bare `Super` tap, a quick `Super+key` never reaches FastClipboard (only holding the keys works).
+- **Desktop shortcut** running `flatpak run io.github.evandro777.FastClipboard --toggle`: works, but `flatpak run` takes about 0.5 s, so the first keys you type land in the previous window.
+- **Fast desktop shortcut** (needs `socat`): it writes to the running instance's socket and starts the Flatpak only if nobody answers. Use `show` instead of `toggle` if the key should only open the popup.
+
+```bash
+sh -c 'echo toggle | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/app/io.github.evandro777.FastClipboard/fastclipboard.sock || flatpak run io.github.evandro777.FastClipboard'
+```
 
 ## Install
 
@@ -59,6 +69,8 @@ More information in [BUILD.md](BUILD.md#text-from-an-image-ocr).
 
 #### Install from file (no updates)
 
+A `.flatpak` file downloaded from Releases is a one-off install: to get automatic updates, go to [Install with automatic updates](<#Install with automatic updates>).
+
 Download `FastClipboard-<version>-x86_64.flatpak` from [Releases](https://github.com/evandro777/FastClipboard/releases), then execute:
 
 ```bash
@@ -69,16 +81,16 @@ Installing from file, will not auto update.
 
 #### Install with automatic updates
 
-Every release is also published as a Flatpak remote, so `flatpak update` (or your software centre) keeps FastClipboard current. A `.flatpak` file downloaded from Releases is a one-off install: to get updates, add the remote below.
+This app is not in Flathub yet. You need to add this repository as a remote. Every release is also published as a Flatpak remote, so `flatpak update` (or your software centre) keeps the app updated.
 
 ```bash
 flatpak remote-add --system --if-not-exists fastclipboard https://evandro777.github.io/FastClipboard/fastclipboard.flatpakrepo
 flatpak install --system fastclipboard io.github.evandro777.FastClipboard
 ```
 
-**`--system` vs `--user` matters for updates.** Linux Mint's Update Manager (and probably other software centres) only looks at *system-wide* Flatpaks; a `--user` install never appears there. With `--user`, update by hand: `flatpak update --user` (a plain `flatpak update` only checks the system installation).
+**`--system` vs `--user` matters for updates.** Linux Mint's Update Manager (and probably other software centres) only looks at *system-wide* Flatpaks; With `--user`, update by hand: `flatpak update --user`.
 
-The remote is GPG-signed (system-wide installs refuse unsigned remotes), but the key lives in this same repository, so it is only as trustworthy as the repository it is built from. It needs the Flathub remote for the runtime (`flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`, with `--system` or `--user` to match).
+The remote is GPG-signed (system-wide installs refuse unsigned remotes), but the key lives in this same repository. It needs the Flathub remote for the runtime (`flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`, with `--system` or `--user` to match).
 
 For a desktop shortcut use the command `flatpak run io.github.evandro777.FastClipboard --toggle`.
 
@@ -88,7 +100,7 @@ For a desktop shortcut use the command `flatpak run io.github.evandro777.FastCli
     flatpak override --user --filesystem=xdg-config/autostart io.github.evandro777.FastClipboard
     ```
 
-    - It only opens `~/.config/autostart`, nothing else. Undo it with `flatpak override --user --reset io.github.evandro777.FastClipboard`.
+    - Need to restart the application after managing permissions. It only opens `~/.config/autostart`, nothing else. Undo it with `flatpak override --user --reset io.github.evandro777.FastClipboard`.
 
 - **OCR** needs the host's `tesseract`, which the sandbox cannot see. It is off unless you grant it yourself, on your own account (until then the OCR menu entries are dimmed, and the preferences show this command):
 
@@ -97,8 +109,6 @@ For a desktop shortcut use the command `flatpak run io.github.evandro777.FastCli
     ```
 
 - FastClipboard runs the host's `tesseract` through `flatpak-spawn --host`. This lets it start commands outside the sandbox, which removes most of what the sandbox protects, so it is your choice. Undo it with `flatpak override --user --reset io.github.evandro777.FastClipboard`.
-
-- The Flatpak keeps its data in `~/.var/app/io.github.evandro777.FastClipboard/`, separate from the AppImage's. Run one of the two, not both: the second one cannot take the shortcut.
 
 ### AppImage (with delta updates)
 

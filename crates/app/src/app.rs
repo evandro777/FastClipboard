@@ -957,7 +957,7 @@ impl App {
         }
     }
 
-    /// Alt+D: deletes the row from the history and keeps the selection on the same position.
+    /// Shift+Delete: deletes the row from the history and keeps the selection on the same position.
     fn remove(&self, row: i32) {
         debug(|| format!("remove row {row}"));
         {

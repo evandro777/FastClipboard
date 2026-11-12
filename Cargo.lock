@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "fastclipboard"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "fastclipboard-core",
  "ksni",
@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "fastclipboard-core"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "serde",
  "toml",

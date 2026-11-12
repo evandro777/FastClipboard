@@ -201,7 +201,7 @@ export component Main inherits Window {
             } else if (e.text == Key.Tab) {
                 // Nothing to do, but it must not move the focus away from the search box.
                 return accept;
-            } else if (e.modifiers.alt && e.text.to-lowercase() == "d") {
+            } else if (e.modifiers.shift && e.text == Key.Delete) {
                 root.remove(root.current);
                 return accept;
             }
@@ -328,7 +328,7 @@ export component Main inherits Window {
             }
 
             Text {
-                text: @tr("Enter paste · Shift+Enter options · PgUp/PgDn page · Alt+D delete");
+                text: @tr("Enter paste · Shift+Enter options · PgUp/PgDn page · Shift+Del delete");
                 color: Family.muted;
                 font-size: Family.caption;
                 overflow: elide;

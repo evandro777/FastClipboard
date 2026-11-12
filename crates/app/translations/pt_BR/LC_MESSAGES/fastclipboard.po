@@ -16,8 +16,8 @@ msgid "No matches"
 msgstr "Nenhum resultado"
 
 msgctxt "Main"
-msgid "Enter paste · Shift+Enter options · PgUp/PgDn page · Alt+D delete"
-msgstr "Enter colar · Shift+Enter opções · PgUp/PgDn página · Alt+D excluir"
+msgid "Enter paste · Shift+Enter options · PgUp/PgDn page · Shift+Del delete"
+msgstr "Enter colar · Shift+Enter opções · PgUp/PgDn página · Shift+Del excluir"
 
 msgctxt "Main"
 msgid "Original"

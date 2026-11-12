@@ -125,6 +125,7 @@ System deps: `libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev
 - No async runtime. Scans/work in threads, results handed to the UI thread with `slint::invoke_from_event_loop`.
 - Never hold a `RefCell` borrow while calling something that makes Slint re-read a model.
 - Keep dependencies few and light.
+- **Super+key grabs fail on a quick tap when the Cinnamon menu's `overlay-key` is bare Super** (`Super_L::Super_R`): Muffin intercepts the next key, so only autorepeat reaches our grab. Not fixable in the app. `flatpak run` costs ~0.47 s; the fast external trigger is writing `show`/`toggle` to the socket (README, "Keyboard shortcut").
 - Slint notes: a `VerticalLayout` inside a `ScrollView` needs `alignment: start`, or a short list spreads its rows over the window; read-only `TextInput` (one per block) makes text selectable; use `content-y` (not `viewport-y`); a callback named `close` shadows a builtin (use `dismiss`); `FocusScope.capture-key-pressed` intercepts keys before `LineEdit`; a `width: self.height` sibling plus a `word-wrap` Text in the same layout makes a binding loop (use a fixed width); `Palette.selection-background` is the accent colour, so a "quiet" selection is `accent-background.with-alpha(..)`; the software renderer ignores `drop-shadow-*`.
 
 ## Translations

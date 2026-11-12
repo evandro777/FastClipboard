@@ -53,3 +53,5 @@ Automatically check for virus on deploy, or delete `virustotal.yml`.
 - Settings → Secrets and variables → Actions → New repository secret
 - `Name`: `VIRUSTOTAL_API_KEY`
 - `Secret`: Your Virus total api key
+- Some antivirus may identify it as trojan, so you need to send the file to reanalyze:
+    - [Microsoft Windows Defender](https://www.microsoft.com/en-us/wdsi/filesubmission)

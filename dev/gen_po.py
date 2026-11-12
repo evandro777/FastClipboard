@@ -12,8 +12,8 @@ T = [
     ("Main", "No matches", ["Nenhum resultado"]),
     (
         "Main",
-        "Enter paste · Shift+Enter options · PgUp/PgDn page · Alt+D delete",
-        ["Enter colar · Shift+Enter opções · PgUp/PgDn página · Alt+D excluir"],
+        "Enter paste · Shift+Enter options · PgUp/PgDn page · Shift+Del delete",
+        ["Enter colar · Shift+Enter opções · PgUp/PgDn página · Shift+Del excluir"],
     ),
     ("Main", "Original", ["Original"]),
     ("Main", "Plain text", ["Texto simples"]),
