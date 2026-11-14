@@ -72,7 +72,10 @@ pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> io::Result<()> {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(format!(".{}.tmp", std::process::id()));
     let tmp = path.with_file_name(name);
+    // Flushed before the rename: after a power cut some filesystems keep the rename but not the data, and an empty
+    // history.toml would make `History::load` sweep every image file.
     write_private(&tmp, data)
+        .and_then(|()| fs::File::open(&tmp)?.sync_all())
         .and_then(|()| fs::rename(&tmp, path))
         .inspect_err(|_| {
             let _ = fs::remove_file(&tmp);

@@ -9,6 +9,7 @@ use slint::{Rgba8Pixel, SharedPixelBuffer};
 /// at most 8 MB can describe an enormous flat image. 40 Mpix covers several 4K screens. Bigger images are still
 /// stored and pasted, they just show no thumbnail.
 const MAX_THUMB_SOURCE_PIXELS: u64 = 40_000_000;
+const MAX_THUMB_SIDE: u32 = 16384;
 /// The thumbnail is fitted into this box. The list shows it at half size, so it stays sharp on HiDPI screens.
 const THUMB_BOX: (u32, u32) = (192, 96);
 
@@ -110,7 +111,8 @@ pub fn thumbnail(png: &[u8]) -> Thumb {
         return Thumb::Broken;
     }
     // `next_row` of an interlaced image yields the passes of Adam7, not whole rows; those get the text label.
-    if interlaced || u64::from(w) * u64::from(h) > MAX_THUMB_SOURCE_PIXELS {
+    // The side limit: `cell_map` holds one entry per column, so a 40000000x1 image would take 320 MB.
+    if interlaced || u64::from(w) * u64::from(h) > MAX_THUMB_SOURCE_PIXELS || w.max(h) > MAX_THUMB_SIDE {
         return Thumb::Skipped;
     }
     let channels = reader.output_color_type().0.samples();
@@ -263,6 +265,17 @@ mod tests {
             png
         };
         assert_eq!(thumbnail(&huge), Thumb::Skipped);
+        let wide = {
+            let mut png = Vec::new();
+            let mut enc = Encoder::new(&mut png, MAX_THUMB_SIDE + 1, 1); // few pixels, but a very long row
+            enc.set_color(ColorType::Grayscale);
+            enc.set_depth(BitDepth::Eight);
+            let mut w = enc.write_header().unwrap();
+            w.write_image_data(&vec![0u8; MAX_THUMB_SIDE as usize + 1]).unwrap();
+            w.finish().unwrap();
+            png
+        };
+        assert_eq!(thumbnail(&wide), Thumb::Skipped);
         // Every source position maps to a cell, in order, and every cell gets at least one.
         let map = cell_map(500, 192);
         assert!(map.windows(2).all(|p| p[1] == p[0] || p[1] == p[0] + 1));

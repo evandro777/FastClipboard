@@ -85,7 +85,7 @@ Only one instance runs. Starting `fastclipboard` again opens the popup of the ru
 
 ### Text from an image (OCR)
 
-On an image entry, the Shift+Enter (or right click) menu is **Original** plus the **OCR ·** entries (plain text, trim, upper case, lower case, one line), which paste the text found in the picture (it is not added to the history). Text entries have no OCR entries. It runs the `tesseract` command, which is optional and not bundled:
+On an image entry, the Alt+Enter (or right click) menu is **Original** plus the **OCR ·** entries (plain text, trim, upper case, lower case, one line), which paste the text found in the picture (it is not added to the history). Text entries have no OCR entries. It runs the `tesseract` command, which is optional and not bundled:
 
 Install `tesseract` itself, it is recommended that always install with English (`eng`, the fallback when the app's language has no pack), then one extra package per language you read (Debian/Ubuntu/Mint names):
 

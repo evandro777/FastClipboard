@@ -10,7 +10,7 @@
   </developer>
   <url type="homepage">https://github.com/evandro777/FastClipboard</url>
   <description>
-    <p>FastClipboard keeps a history of what you copy (text, HTML and images) and brings it back with a global hotkey. Search the history, press Enter to paste, or Shift+Enter for plain text, text transforms and OCR of copied images.</p>
+    <p>FastClipboard keeps a history of what you copy (text, HTML and images) and brings it back with a global hotkey. Search the history, press Enter to paste, or Alt+Enter for plain text, text transforms and OCR of copied images.</p>
     <p>It starts fast and uses little memory. X11 only for now.</p>
   </description>
   <launchable type="desktop-id">io.github.evandro777.FastClipboard.desktop</launchable>

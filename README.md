@@ -11,14 +11,14 @@ A tiny clipboard history for Linux (X11), inspired by CopyQ. Written in Rust wit
 
 Page: <https://evandro777.github.io/FastClipboard/>
 
-![The FastClipboard popup: a search box over the clipboard history, with the Shift+Enter menu open on a copied image](docs/screenshots/popup.png)
+![The FastClipboard popup: a search box over the clipboard history, with the Alt+Enter menu open on a copied image](docs/screenshots/popup.png)
 
 ## Features
 
 - History of text, HTML and **images** (PNG, up to 8 MB), deduplicated, up to 500 entries; search as you type (all words must match, case-insensitive)
 - Size limits: all text together is capped at 4 MiB and all images together at 1 GiB, and the oldest entries go first. A copy skipped for size is reported on stderr
 - Images show as a thumbnail with their size; Enter pastes the original PNG. Plain text and the other menu transforms paste text only (they do not change the stored entry)
-- Keyboard first: run it once and press **Ctrl+Alt+V**; `Shift+Enter` (or right click) opens the options menu for plain text, text transforms and OCR
+- Keyboard first: run it once and press **Ctrl+Alt+V**; `Alt+Enter` (or right click) opens the options menu for plain text, text transforms and OCR
 - Opens centered on the mouse pointer (kept inside that monitor), remembers the size you give it, and closes when it loses focus
 - Pastes back into the window you were using with Ctrl+V (Ctrl+Shift+V in terminals). If that window cannot be refocused, nothing is sent and the entry stays on the clipboard
 - Copies from password managers (the `x-kde-passwordManagerHint` flag, set by KeePassXC, Bitwarden and others) are never recorded. A password manager that does not set it is recorded like any other copy, in clear text in `history.toml` (readable only by your user) until the entry is dropped: use **Clear history** or Shift+Delete when that matters
@@ -30,10 +30,10 @@ Page: <https://evandro777.github.io/FastClipboard/>
 | type                  | search                                                              |
 | Up / Down             | move the selection                                                  |
 | Enter                 | paste the selection, keeping its formatting                         |
-| Shift+Enter           | options menu (Up/Down, Enter, Esc)                                  |
+| Alt+Enter             | options menu (Up/Down, Enter, Esc)                                  |
 | PgUp / PgDn           | move one page of rows at a time                                     |
 | ↓ / scroll to the end | the list shows 20 entries and loads the next 20 on reaching the end |
-| Right click           | the Shift+Enter options menu for the row under the pointer          |
+| Right click           | the Alt+Enter options menu for the row under the pointer          |
 | Shift+Delete          | delete the entry                                                    |
 | Esc                   | close                                                               |
 

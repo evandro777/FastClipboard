@@ -7,7 +7,7 @@ Notes for AI agents and contributors. Read this before changing anything.
 A **light and fast** Linux desktop app in Rust + Slint. Priorities: fast start, low memory, simplicity.
 
 A minimal CopyQ-like clipboard history for X11: a background process records text and HTML copies, a global hotkey
-(default Ctrl+Alt+V) opens a popup to search and paste, Shift+Enter opens an options menu (plain text, transforms).
+(default Ctrl+Alt+V) opens a popup to search and paste, Alt+Enter opens an options menu (plain text, transforms).
 
 - `crates/core/src/history.rs`: the list (dedupe, cap, search, `history.toml`). Whole-file rewrite per copy (500 items cap).
 - `crates/app/src/x11.rs`: one thread with the XFixes watcher, hotkey grab and clipboard serving; `x11::Handle` (shared
@@ -52,7 +52,7 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
   offer PNG, and a JPEG photo re-encoded as PNG usually exceeds the 8 MB cap). `History::load` deletes
   files in `images/` that no entry references, but only when `history.toml` was read and parsed (never after a missing or
   corrupt file).
-- Transforms (`core/transform.rs`) are picked from the Shift+Enter menu (`choose(row, option)`: 0 original, 1 plain,
+- Transforms (`core/transform.rs`) are picked from the Alt+Enter menu (`choose(row, option)`: 0 original, 1 plain,
   2.. transforms); they paste text only and are not added to the history, like a plain paste. `x11::paste` first releases
   any modifier the user is still holding (query_keymap): otherwise a Shift+Enter pick arrived as Ctrl+Shift+V (Paste Special /
   nothing in xed) and Alt shortcuts as Ctrl+Alt+V. Alt+letter shortcuts were dropped for this menu.
@@ -68,7 +68,7 @@ A minimal CopyQ-like clipboard history for X11: a background process records tex
   the focus to the `keys` scope (the search box is disabled), and `on_focus_lost` does not hide the popup.
 - OCR languages: `ocr_lang = ""` means the interface language first, then English (`ocr::auto_lang`, mapped by hand, only packs
   `tesseract --list-langs` reports); a non-empty value is used as is.
-- OCR: the Shift+Enter menu depends on the row (`Row.is-image`): text rows get `text-options`, image rows get
+- OCR: the Alt+Enter menu depends on the row (`Row.is-image`): text rows get `text-options`, image rows get
   `image-options` (Original, then the same options as OCR + transform; same positions in both lists, so `choose` maps
   them alike). They run `tesseract stdin stdout -l <ocr_lang>` in a thread (`ocr.rs`) on the stored PNG and paste the
   (transformed) text; popup closes first, errors go to stderr. tesseract is optional and shelled out on purpose (no OCR

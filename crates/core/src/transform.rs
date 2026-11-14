@@ -1,4 +1,4 @@
-//! Text transforms offered when pasting (Shift+Enter menu in the popup). Each is a pure function of the text.
+//! Text transforms offered when pasting (Alt+Enter menu in the popup). Each is a pure function of the text.
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Transform {

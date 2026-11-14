@@ -26,7 +26,7 @@ export component Main inherits Window {
     callback query-changed(string);
     callback activate(int, bool);
     callback remove(int);
-    // Shift+Enter menu: paste the row with option 0..5 (original, plain, trim, upper, lower, one line). On an image row
+    // Alt+Enter menu: paste the row with option 0..5 (original, plain, trim, upper, lower, one line). On an image row
     // everything after "Original" is applied to the text OCR finds in it; both lists have the same positions.
     callback choose(int, int);
     in-out property <bool> menu-open;
@@ -187,7 +187,7 @@ export component Main inherits Window {
                 return accept;
             } else if (e.text == Key.Return) {
                 if (root.rows.length > 0) {
-                    if (e.modifiers.shift) {
+                    if (e.modifiers.alt) {
                         root.menu-index = 0;
                         root.menu-open = true;
                     } else {
@@ -315,7 +315,7 @@ export component Main inherits Window {
                     }
                     row-touch := TouchArea {
                         clicked => { root.activate(i, false); }
-                        // Right click: the same options menu as Shift+Enter, for this row.
+                        // Right click: the same options menu as Alt+Enter, for this row.
                         pointer-event(e) => {
                             if (e.button == PointerEventButton.right && e.kind == PointerEventKind.up) {
                                 root.current = i;
@@ -328,7 +328,7 @@ export component Main inherits Window {
             }
 
             Text {
-                text: @tr("Enter paste · Shift+Enter options · PgUp/PgDn page · Shift+Del delete");
+                text: @tr("Enter paste · Alt+Enter options · PgUp/PgDn page · Shift+Del delete");
                 color: Family.muted;
                 font-size: Family.caption;
                 overflow: elide;

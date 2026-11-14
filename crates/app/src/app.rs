@@ -161,7 +161,8 @@ pub fn run(ui: Main, settings: Settings) {
         let (history, max) = (history.clone(), max_items.clone());
         // One worker, not a thread per copy: the X11 thread (hotkey, serving the clipboard) must not wait for a decode,
         // and a burst of big images is processed one at a time, in order.
-        let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        // Bounded: each queued PNG can be 8 MB, so a burst must not pile up in RAM.
+        let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(4);
         std::thread::spawn(move || {
             for data in rx {
                 // Validated and thumbnailed before taking the lock: decoding takes a moment.
@@ -201,7 +202,9 @@ pub fn run(ui: Main, settings: Settings) {
             }
         });
         move |data: Vec<u8>| {
-            let _ = tx.send(data);
+            if tx.try_send(data).is_err() {
+                eprintln!("image skipped: too many images waiting to be processed");
+            }
         }
     };
     let on_hotkey = {
@@ -723,7 +726,7 @@ impl App {
         self.paste_payload(payload);
     }
 
-    /// Shift+Enter menu: 0 original, 1 plain text, then the transforms. Transformed text is not added to the history,
+    /// Alt+Enter menu: 0 original, 1 plain text, then the transforms. Transformed text is not added to the history,
     /// like a plain paste.
     /// On an image row only "Original" pastes the picture; the other options paste the text OCR finds in it, with the
     /// transform applied.

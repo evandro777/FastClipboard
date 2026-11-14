@@ -114,7 +114,7 @@ pub fn apply(ui: &Main, mode: usize) {
     ui.set_current(if mode == 2 { 1 } else { 0 });
     // The "Show all" button is part of the "many" snapshot.
     ui.set_hidden(if mode == 2 { 30 } else { 0 });
-    // The Shift+Enter menu is part of the "many" snapshot of the popup.
+    // The Alt+Enter menu is part of the "many" snapshot of the popup.
     ui.set_menu_open(mode == 2 && page() == 0);
     ui.set_ocr_ready(ocr_status() == crate::ocr::Status::Ready);
     if page() == 1 {

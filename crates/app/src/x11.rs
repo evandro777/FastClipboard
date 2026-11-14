@@ -448,6 +448,7 @@ impl Daemon {
             }
             let _ = self.h.conn.flush();
         }
+        eprintln!("X11 connection lost; the clipboard history stopped");
     }
 
     fn request(&self, target: Atom) {
@@ -569,6 +570,11 @@ impl Daemon {
     }
 
     fn serve(&self, e: &SelectionRequestEvent) {
+        // A void request only fails later (e.g. BadAlloc for a big PNG on a requestor that cannot take it); waiting for
+        // the answer here keeps us from telling it the data arrived.
+        fn delivered<C: x11rb::connection::RequestConnection>(cookie: x11rb::cookie::VoidCookie<'_, C>) -> bool {
+            cookie.check().is_ok()
+        }
         let prop = if e.property == NONE { e.target } else { e.property };
         let (a, c) = (&self.h.a, &self.h.conn);
         let own = self.h.own.lock().unwrap();
@@ -584,16 +590,16 @@ impl Daemon {
                     t.extend(content.html.is_some().then_some(a.html));
                     t.extend(content.png.is_some().then_some(a.png));
                     c.change_property32(PropMode::REPLACE, e.requestor, prop, AtomEnum::ATOM, &t)
-                        .is_ok()
+                        .is_ok_and(delivered)
                 } else if is_string && has_text {
                     c.change_property8(PropMode::REPLACE, e.requestor, prop, e.target, content.text.as_bytes())
-                        .is_ok()
+                        .is_ok_and(delivered)
                 } else if let (true, Some(html)) = (e.target == a.html, &content.html) {
                     c.change_property8(PropMode::REPLACE, e.requestor, prop, e.target, html.as_bytes())
-                        .is_ok()
+                        .is_ok_and(delivered)
                 } else if let (true, Some(png)) = (e.target == a.png, &content.png) {
                     c.change_property8(PropMode::REPLACE, e.requestor, prop, e.target, png)
-                        .is_ok()
+                        .is_ok_and(delivered)
                 } else {
                     false
                 }
