@@ -53,7 +53,7 @@ App id: `io.github.evandro777.FastClipboard`.
 
 ```bash
 sudo apt install flatpak-builder
-flatpak install --user flathub org.freedesktop.Sdk//25.08 org.freedesktop.Sdk.Extension.rust-stable//25.08
+flatpak install --user flathub org.freedesktop.Sdk//26.08 org.freedesktop.Sdk.Extension.rust-stable//26.08
 flatpak/build.sh --devel      # installs io.github.evandro777.FastClipboard.Devel next to a release
 flatpak run io.github.evandro777.FastClipboard.Devel
 ```

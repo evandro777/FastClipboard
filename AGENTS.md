@@ -171,7 +171,7 @@ Work on branches, PRs to `master`. CI: `ci.yml` (fmt, clippy, tests, MSRV, metai
 ## Flatpak
 
 App id `io.github.evandro777.FastClipboard`; `flatpak/build.sh --devel` installs `...FastClipboard.Devel` next to a release. Needs `flatpak-builder` and
-`org.freedesktop.Sdk//25.08` + `org.freedesktop.Sdk.Extension.rust-stable//25.08`. **Not built or run yet**: verify the tray, hotkey, paste and the
+`org.freedesktop.Sdk//26.08` + `org.freedesktop.Sdk.Extension.rust-stable//26.08`. **Not built or run yet**: verify the tray, hotkey, paste and the
 socket inside the sandbox first.
 
 - Permissions: `--share=ipc`, `--socket=x11` (X11 has no sandbox, so XFixes/XGrabKey/XTest work as on the host) and

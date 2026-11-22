@@ -16,6 +16,14 @@
   <launchable type="desktop-id">io.github.evandro777.FastClipboard.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-11-22">
+      <description>
+        <p>Options menu is now Alt+Enter</p>
+        <p>Improments in performance and memory</p>
+        <p>UI polish (family kit v10)</p>
+        <p>Build and packaging: Slint 1.18 → 1.19 and MSRV 1.92 → 1.95</p>
+      </description>
+    </release>
     <release version="0.1.10" date="2026-11-12">
       <description>
         <p>Change delete hotkey to: SHIFT + delete</p>

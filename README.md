@@ -1,4 +1,4 @@
-# FastClipboard
+# <img src="packaging/io.github.evandro777.FastClipboard.svg" width="36" height="36" alt=""> FastClipboard
 
 [![CI](https://github.com/evandro777/FastClipboard/actions/workflows/ci.yml/badge.svg)](https://github.com/evandro777/FastClipboard/actions/workflows/ci.yml)
 [![Flatpak](https://github.com/evandro777/FastClipboard/actions/workflows/flatpak.yml/badge.svg)](https://github.com/evandro777/FastClipboard/actions/workflows/flatpak.yml)
